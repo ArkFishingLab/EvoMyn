@@ -115,7 +115,6 @@ class ArchiveStore:
             except KeyError: raise ValueError(f'关联记录不存在：{linked_id}')
         if 'steps' in record and (not isinstance(record['steps'], list) or any(not isinstance(step, dict) or not isinstance(step.get('text'), str) or not isinstance(step.get('done'), bool) for step in record['steps'])): raise ValueError('steps 需要 text 字符串与 done 布尔值。')
         if record.get('file_path'):
-            if record['category'] != 'resource': raise ValueError('只有资料记录可以登记文件。')
             path = Path(record['file_path']).expanduser().resolve()
             if not path.is_file(): raise ValueError('关联的文件不存在。')
             if path == self.db_path or path.is_relative_to(self.db_path.parent): raise ValueError('数据库文件不能作为展示附件。')
@@ -137,14 +136,13 @@ class ArchiveStore:
                     raise ArchiveConflict('记录已被删除，请刷新后重试。')
                 previous = conn.execute('SELECT * FROM personal_archive_records WHERE id=?', (record['id'],)).fetchone()
                 if expected_revision is not None and (previous['revision'] if previous else 0) != expected_revision: raise ArchiveConflict('记录已被更新，请重新读取后再修改。')
-                if previous and previous['category'] != record['category']: raise ValueError('修改时不能更换记录类别。')
                 revision = previous['revision'] + 1 if previous else 1
                 record['created_at'] = json.loads(previous['payload'])['created_at'] if previous else stamp
                 record['updated_at'] = stamp
                 record['revision'] = revision
                 payload = json.dumps(record, ensure_ascii=False)
                 conn.execute('''INSERT INTO personal_archive_records (id,category,occurrence_date,payload,revision,updated_at)
-                    VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,
+                    VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,category=excluded.category,
                     occurrence_date=excluded.occurrence_date,revision=excluded.revision,updated_at=excluded.updated_at''',
                     (record['id'], record['category'], record['date'], payload, revision, stamp))
                 conn.execute('INSERT INTO personal_archive_history VALUES (?,?,?,?)', (record['id'], revision, payload, stamp))
@@ -247,7 +245,7 @@ class ArchiveStore:
 
     def update(self, record_id, changes, expected_revision=None, *, index=True):
         record = self.get(record_id)
-        if not isinstance(changes, dict) or any(key in changes for key in ('id', 'category', 'created_at', 'revision', 'memory_id')): raise ValueError('修改字段不正确。')
+        if not isinstance(changes, dict) or any(key in changes for key in ('id', 'created_at', 'revision', 'memory_id')): raise ValueError('修改字段不正确。')
         return self.save({**record, **changes}, expected_revision=record['revision'] if expected_revision is None else expected_revision, index=index)
 
     def tombstone(self, record_id):
@@ -303,7 +301,7 @@ class ArchiveStore:
 
     def attachment(self, record_id):
         record = self.get(record_id)
-        if record['category'] != 'resource' or not record.get('file_path'): raise KeyError(record_id)
+        if not record.get('file_path'): raise KeyError(record_id)
         path = Path(record['file_path']).resolve()
         if not path.is_file() or path.is_relative_to(self.db_path.parent): raise KeyError(record_id)
         return path

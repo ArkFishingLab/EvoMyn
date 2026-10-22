@@ -25,25 +25,20 @@ int main() {
   LocalPlannerRequest complete{"r2", "complete", id, occurrence, 1, {}, "done"};
   assert(!model.Execute(complete, 0, "device").ok);
   assert(model.Execute(complete, now + 65, "device").ok);
-  assert(model.journal.size() == 1 &&
-         model.journal.front().scheduled_at == now + 60);
-  assert(model.journal.front().completed_at == now + 65 &&
-         model.journal.front().note == "done");
+  assert(model.journal.empty());
   assert(model.Execute(complete, now + 70, "device").ok &&
-         model.journal.size() == 1);
+         model.journal.empty());
   complete.request_id = "r3";
   assert(!model.Execute(complete, now + 70, "device").ok &&
-         model.journal.size() == 1);
+         model.journal.empty());
   assert(model.snapshot.tasks.front().status == "pending");
   assert(model.snapshot.reminders.front().at == now + 60 + 86400);
   LocalPlanner restored;
   std::string error;
   auto raw = EncodeLocalPlanner(model);
   assert(DecodeLocalPlanner(raw, restored, error));
-  assert(restored.journal.front().event_id == model.journal.front().event_id);
+  assert(restored.journal.empty());
   assert(restored.Execute(create, now, "device").task_id == id);
-  assert(restored.Acknowledge(model.journal.front().event_id) &&
-         restored.journal.empty());
   auto cancel = LocalPlannerRequest{"cancel", "cancel", id, "", 2, {}, ""};
   assert(restored.Execute(cancel, now, "device").ok &&
          restored.journal.empty());
@@ -72,9 +67,10 @@ int main() {
       {"imported", "From server", "", "note", "pending", 8, 0, "none"});
   assert(!migrated.Import(imported_snapshot,
                           error)); // one-time import is immutable
-  // Atomic caller rollback contract and bounded journal backpressure.
+  // Offline completion has no upload queue and must recycle completed slots.
   LocalPlanner full;
-  for (size_t i = 0; i < LocalPlanner::MaxJournal; ++i) {
+  LocalPlannerRequest first_create, first_finish;
+  for (size_t i = 0; i < 70; ++i) {
     auto c = create;
     c.request_id = "c" + std::to_string(i);
     c.task.repeat = "none";
@@ -83,16 +79,53 @@ int main() {
     auto finish = LocalPlannerRequest{
         "f" + std::to_string(i), "complete", r.task_id, "", 1, {}, ""};
     assert(full.Execute(finish, now + 1, "device").ok);
+    assert(full.journal.empty());
+    assert(full.snapshot.tasks.back().status == "completed");
+    assert(full.snapshot.tasks.size() <= 32);
+    LocalPlanner reboot;
+    assert(DecodeLocalPlanner(EncodeLocalPlanner(full), reboot, error));
+    full = std::move(reboot);
+    assert(full.Execute(finish, now + 2, "device").ok);
+    if (i == 0) { first_create = c; first_finish = finish; }
   }
-  auto c = create;
-  c.request_id = "full";
-  auto r = full.Execute(c, now, "device");
-  assert(r.ok);
+  assert(full.snapshot.tasks.size() == 32);
   auto before = EncodeLocalPlanner(full);
-  assert(!full.Execute({"overflow", "complete", r.task_id, "", 1, {}, ""},
-                       now + 2, "device")
-              .ok);
+  assert(!full.Execute(first_create, now + 2, "device").ok);
+  assert(!full.Execute(first_finish, now + 2, "device").ok);
   assert(EncodeLocalPlanner(full) == before);
+  // A legacy import must not resurrect a reclaimed completed task.
+  auto retired = old;
+  retired.tasks.front().id = "local-c0";
+  retired.reminders.clear();
+  assert(full.Import(retired, error));
+  assert(full.snapshot.tasks.size() == 32);
+  before = EncodeLocalPlanner(full);
+  // A full legacy journal remains readable and preserved without backpressure.
+  LocalPlanner archived;
+  for (size_t i = 0; i < LocalPlanner::MaxJournal; ++i)
+    archived.journal.push_back({"old-event-" + std::to_string(i), "device",
+                               "old-task-" + std::to_string(i), "Old", "body",
+                               now, now + 1, "note"});
+  LocalPlanner upgraded;
+  assert(DecodeLocalPlanner(EncodeLocalPlanner(archived), upgraded, error));
+  const auto legacy_journal = EncodePlannerJournal(upgraded.journal.front());
+  auto recurring = upgraded.Execute(create, now, "device");
+  assert(recurring.ok);
+  for (int day = 0; day < 40; ++day) {
+    auto alarm = upgraded.TakeDue(now + 60 + day * 86400LL);
+    assert(alarm && alarm->ring);
+    LocalPlannerRequest finish{"daily-finish-" + std::to_string(day), "complete",
+                                recurring.task_id, alarm->reminder.id,
+                                static_cast<uint32_t>(day + 1), {}, ""};
+    assert(upgraded.Execute(finish, now + 65 + day * 86400LL, "device").ok);
+    const auto saved = EncodeLocalPlanner(upgraded);
+    assert(upgraded.Execute(finish, now + 70 + day * 86400LL, "device").ok);
+    assert(EncodeLocalPlanner(upgraded) == saved);
+    assert(DecodeLocalPlanner(saved, upgraded, error));
+  }
+  assert(upgraded.journal.size() == LocalPlanner::MaxJournal);
+  assert(EncodePlannerJournal(upgraded.journal.front()) == legacy_journal);
+  assert(upgraded.snapshot.reminders.front().at == now + 60 + 40 * 86400LL);
   // Empty and corrupt input do not overwrite the current state.
   assert(!DecodeLocalPlanner("{}", full, error) &&
          EncodeLocalPlanner(full) == before);
@@ -210,10 +243,10 @@ int main() {
               {"detail-finish", "complete", detail_task.task_id, "", 1, {}, ""},
               now + 70, "device")
           .ok);
-  assert(detail_reboot.journal.front().scheduled_at == now + 60);
+  assert(detail_reboot.journal.empty());
   assert(detail_reboot.Effective().reminders.front().at == now + 60 + 86400);
   // A completion replay after its full receipt rotates out must be rejected
-  // after reboot, without a second journal or skipping another recurrence.
+  // after reboot, without skipping another recurrence.
   for (uint32_t i = 0; i < 140; ++i) {
     auto change = create;
     change.action = "update";
@@ -234,6 +267,6 @@ int main() {
                         ""},
                        now + 90, "device")
               .ok);
-  assert(replay.journal.size() == 1);
+  assert(replay.journal.empty());
   std::cout << "local planner passed\n";
 }

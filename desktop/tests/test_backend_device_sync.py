@@ -1,156 +1,102 @@
-"""Real TLS and supervisor lifecycle against disposable desktop data."""
-import http.client
+"""Upgrade regressions for retired completion sync; all state is disposable."""
 import json
 import socket
-import ssl
-import time
-from types import SimpleNamespace
+import subprocess
+import sys
 from urllib.request import urlopen
 import unittest
-from unittest.mock import Mock, patch
 
-from test_backend_service import DesktopBackend
+import test_backend_service as backend
 from test_device_sync import pairing
 
 
-class DesktopDeviceSync(unittest.TestCase):
-    # Reuse only the process harness, not its unrelated test cases.
-    setUp = DesktopBackend.setUp
-    tearDown = DesktopBackend.tearDown
-    command = DesktopBackend.command
-    launch = DesktopBackend.launch
-    def test_sync_is_independent_durable_and_resumes_on_restart(self):
-        self.command('stop-mcp')
-        state = self.command('status')
-        self.assertIn('device_sync', state, 'Supervisor must expose independent device sync')
-        self.assertFalse(state['device_sync']['configured'])
-        source, values = pairing(self.base)
-        state = self.command('import-device-sync', directory=str(source))
-        self.assertTrue(state['device_sync']['configured'])
-        self.assertFalse(state['device_sync']['enabled'])
-        (self.data / 'app/device_sync.py').write_text('raise RuntimeError("Unreviewed shadow module")', 'utf-8')
-        state = self.command('set-device-sync', enabled=True)
-        self.assertTrue(state['device_sync']['running'], state)
-        self.assertFalse(state['mcp_enabled'])
-        port = int(values['DEVICE_GATEWAY_PORT'])
-        event = {'event_id': 'fixture-completion-1', 'device_id': 'fixture-device', 'task_id': 'task-1',
-            'title': '隔离完成记录', 'body': 'Temporary TLS completion', 'note': '',
-            'scheduled_at': None, 'completed_at': 1780000000}
+class RetiredDesktopDeviceSync(unittest.TestCase):
+    # Reuse only the isolated process harness, not its unrelated test cases.
+    setUp = backend.DesktopBackend.setUp
+    tearDown = backend.DesktopBackend.tearDown
+    command = backend.DesktopBackend.command
+    launch = backend.DesktopBackend.launch
+    private_tool_call = backend.DesktopBackend.private_tool_call
 
-        def send(token='t' * 64):
-            context = ssl.create_default_context(cafile=str(source / 'cert.pem'))
-            connection = http.client.HTTPSConnection('127.0.0.1', port, timeout=15, context=context)
-            connection.request('POST', '/device/archive', json.dumps(event).encode(),
-                {'Authorization': 'Bearer ' + token, 'Device-Id': 'fixture-device', 'Content-Type': 'application/json'})
-            response = connection.getresponse()
-            result = response.status, json.loads(response.read())
-            connection.close()
-            return result
-
-        self.assertEqual(send('wrong')[0], 401)
-        code, receipt = send()
-        self.assertEqual(code, 200, receipt)
-        state = self.command('status')
-        self.assertEqual(state['device_sync']['received_count'], 1)
-        self.assertIsNotNone(state['device_sync']['last_received_at'])
-        self.assertNotIn('t' * 64, json.dumps(state))
-        self.command('set-device-sync', enabled=False)
-        with socket.socket() as connection:
-            self.assertNotEqual(connection.connect_ex(('127.0.0.1', port)), 0)
-        self.command('set-device-sync', enabled=True)
-        self.assertEqual(send()[1]['record_id'], receipt['record_id'])
+    def stop(self):
         self.command('shutdown')
         self.process.wait(timeout=20)
-        self.process.stdin.close()
-        self.process.stdout.close()
-        self.process.stderr.close()
-        self.launch()
-        state = self.command('status')
-        self.assertTrue(state['device_sync']['running'], state)
-        self.assertFalse(state['mcp_enabled'])
-        self.assertEqual(send()[1]['record_id'], receipt['record_id'])
-        with urlopen(state['dashboard_url'] + 'api/records') as response:
-            records = json.load(response)
-        self.assertEqual(json.dumps(records, ensure_ascii=False).count('隔离完成记录'), 1)
-        self.command('start-mcp')
-        from client import rpc
-        result = rpc(self.data, 'call-tool', name='archive_list', arguments={})
-        self.assertIn('隔离完成记录', str(result))
-        self.assertEqual(self.command('status')['device_sync']['received_count'], 3)
+        for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
+            stream.close()
 
-    def test_bind_failure_does_not_break_desktop_or_retry_forever(self):
+    def assert_retired_command(self, command, **parameters):
+        self.counter += 1
+        self.process.stdin.write(json.dumps({'id': self.counter, 'command': command, **parameters}) + '\n')
+        self.process.stdin.flush()
+        response = json.loads(self.process.stdout.readline())
+        self.assertEqual(response['id'], self.counter)
+        self.assertFalse(response['ok'], 'Retired sync commands must not enable a listener')
+
+    def test_enabled_legacy_pairing_is_preserved_without_listener_and_archive_still_works(self):
+        record = self.private_tool_call('archive_record', {'category': 'journal',
+            'title': '升级前的完成日志', 'body': 'Previously archived completion fixture.'})['structuredContent']
+        record = self.private_tool_call('archive_get', {'record_id': record['id']})['structuredContent']
+        self.stop()
+        # Reproduce the files left by a prior desktop release, with valid TLS
+        # material: the old supervisor would start a real listener on upgrade.
+        from device_sync import import_pairing
         source, values = pairing(self.base)
-        state = self.command('status')
-        self.assertIn('device_sync', state)
-        self.command('import-device-sync', directory=str(source))
-        with socket.socket() as listener:
-            listener.bind(('127.0.0.1', int(values['DEVICE_GATEWAY_PORT'])))
-            listener.listen()
-            state = self.command('set-device-sync', enabled=True)
-            self.assertTrue(state['ready'])
-            self.assertFalse(state['device_sync']['running'])
-            self.assertTrue(state['device_sync']['error'])
-        time.sleep(0.2)
-        self.assertFalse(self.command('status')['device_sync']['running'])
-        self.assertTrue(self.command('set-device-sync', enabled=True)['device_sync']['running'])
-
-    def test_bad_saved_config_is_isolated_and_environment_cannot_enable_gateway(self):
-        self.command('stop-mcp')
-        self.command('shutdown')
-        self.process.wait(timeout=20)
-        self.process.stdin.close()
-        self.process.stdout.close()
-        self.process.stderr.close()
-        (self.data / 'device-sync.json').write_text('{"token":"do-not-expose"}', 'utf-8')
-        self.env.update(DEVICE_GATEWAY_HOST='127.0.0.1', DEVICE_GATEWAY_PORT='18773',
-            PLANNER_DEVICE_ID='environment-device', PLANNER_DEVICE_TOKEN='s' * 64)
+        config = import_pairing(self.data, str(source))
+        config['enabled'] = True
+        saved_config = self.data / 'device-sync.json'
+        saved_config.write_text(json.dumps(config), 'utf-8')
+        receipt = self.data / 'state/device-sync-status.json'
+        receipt.write_text(json.dumps({'pairing_id': config['pairing_id'],
+            'last_received_at': '2026-10-20T10:00:00Z', 'received_count': 1}), 'utf-8')
+        preserved = {path: path.read_bytes() for path in
+            [saved_config, receipt, *list((self.data / 'device-sync').rglob('*.pem'))]}
         self.launch()
         state = self.command('status')
         self.assertTrue(state['ready'])
-        self.assertFalse(state['device_sync']['running'])
-        self.assertFalse(state['device_sync']['enabled'])
-        self.assertTrue(state['device_sync']['error'])
+        self.assertTrue(state['mcp_enabled'])
+        with socket.socket() as connection:
+            self.assertNotEqual(connection.connect_ex(('127.0.0.1', int(values['DEVICE_GATEWAY_PORT']))), 0,
+                'A saved enabled pairing must never launch the retired listener')
+        self.assertNotIn('device_sync', state)
+        self.assert_retired_command('set-device-sync', enabled=True)
+        self.assert_retired_command('set-device-sync', enabled=False)
+        self.assert_retired_command('import-device-sync', directory=str(source))
+        self.assertEqual(self.private_tool_call('archive_get', {'record_id': record['id']})['structuredContent'], record)
+        explicit = self.private_tool_call('archive_record', {'category': 'journal',
+            'title': '主动保存的记忆', 'body': 'Explicit MCP archiving remains available.'})['structuredContent']
+        self.command('stop-mcp')
+        with urlopen(state['dashboard_url'] + 'api/records') as response:
+            records = json.load(response)['records']
+        self.assertEqual({item['id'] for item in records}, {record['id'], explicit['id']})
+        self.command('start-mcp')
+        self.assertIn(explicit['id'], str(self.private_tool_call('archive_list', {})))
+        for path, original in preserved.items():
+            self.assertEqual(path.read_bytes(), original, 'Upgrade must preserve legacy pairing and receipt files')
+
+    def test_invalid_legacy_config_and_gateway_environment_do_not_affect_startup(self):
+        self.stop()
+        saved = self.data / 'device-sync.json'
+        original = b'{"token":"do-not-expose"'
+        saved.write_bytes(original)
+        self.env.update(DEVICE_GATEWAY_HOST='127.0.0.1', DEVICE_GATEWAY_PORT='1',
+                        PLANNER_DEVICE_TOKEN='do-not-expose')
+        self.launch()
+        state = self.command('status')
+        self.assertTrue(state['ready'])
+        self.assertTrue(state['mcp_enabled'])
+        self.assertNotIn('device_sync', state)
         self.assertNotIn('do-not-expose', json.dumps(state))
-        self.assertNotIn('environment-device', json.dumps(state))
+        self.assertEqual(saved.read_bytes(), original)
+        with urlopen(state['dashboard_url']) as response:
+            self.assertEqual(response.status, 200)
+        self.assertFalse(self.private_tool_call('archive_status', {}).get('isError'))
 
-
-del DesktopBackend
-
-
-class RetryPolicy(unittest.TestCase):
-    def test_failed_listener_recovers_on_status_only_after_cooldown(self):
-        from service import Supervisor
-        owner = Supervisor.__new__(Supervisor)
-        owner.root = None
-        owner.device_config = {'enabled': True, 'host': '127.0.0.1', 'port': 18773, 'device_id': 'fixture'}
-        owner.device_gateway = None
-        owner.device_error = None
-        owner.device_retry_at = 0
-        child = SimpleNamespace(process=SimpleNamespace(stdout=None, poll=lambda: None), stop=Mock())
-        replacement = SimpleNamespace(process=SimpleNamespace(stdout=None, poll=lambda: None), stop=Mock())
-        owner.spawn = Mock(side_effect=[OSError('Private diagnostic'), child, replacement])
-        with patch('service.time.monotonic', return_value=100) as clock, \
-                patch('service.bounded_read', return_value={'ready': True}), \
-                patch('device_sync.receipt_status', return_value={'last_received_at': None, 'received_count': 0}):
-            owner.refresh_device_sync()
-            self.assertFalse(owner.device_status()['running'])
-            clock.return_value = 129
-            self.assertFalse(owner.device_status()['running'])
-            self.assertEqual(owner.spawn.call_count, 1)
-            clock.return_value = 131
-            self.assertTrue(owner.device_status()['running'])
-            self.assertEqual(owner.spawn.call_count, 2)
-            self.assertIsNone(owner.device_status()['error'])
-            child.process.poll = lambda: 1
-            clock.return_value = 132
-            self.assertFalse(owner.device_status()['running'])
-            child.stop.assert_called_once()
-            clock.return_value = 161
-            self.assertFalse(owner.device_status()['running'])
-            self.assertEqual(owner.spawn.call_count, 2)
-            clock.return_value = 163
-            self.assertTrue(owner.device_status()['running'])
-            self.assertEqual(owner.spawn.call_count, 3)
+    def test_retired_host_role_is_rejected(self):
+        result = subprocess.run([sys.executable, '-X', 'utf8', str(backend.BACKEND / 'host.py'),
+            '--role', 'device-gateway', '--data-root', str(self.base / 'unused')],
+            env=self.env, capture_output=True, text=True, encoding='utf-8', timeout=15)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('invalid choice', result.stderr)
 
 
 if __name__ == '__main__':

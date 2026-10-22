@@ -17,7 +17,6 @@ import uuid
 
 from client import DesktopOwner, LIMIT, loopback_open
 from paths import atomic_json, environment, prepare, private_permissions, reject_links
-import device_sync
 
 
 class OwnedProcess:
@@ -168,10 +167,6 @@ class Supervisor:
         self.lockfile = FileLock(str(reject_links(self.root / 'desktop.lock')), timeout=0)
         self.lockfile.acquire()
         self.worker = self.bridge = self.dashboard = self.http = None
-        self.device_gateway = None
-        self.device_config = None
-        self.device_error = None
-        self.device_retry_at = 0
         self.lock = threading.RLock()
         self.io_lock = threading.Lock()
         self.ready = False
@@ -231,11 +226,6 @@ class Supervisor:
             if self.settings['mcp_enabled']:
                 self.start_worker()
             self.refresh_bridge()
-            try:
-                self.device_config = device_sync.load_config(self.root)
-                self.refresh_device_sync()
-            except Exception:
-                self.device_error = device_sync.PAIRING_ERROR
             self.ready = True
         except Exception:
             self.close()
@@ -284,43 +274,6 @@ class Supervisor:
         if should_run:
             self.bridge = self.spawn('bridge')
 
-    def refresh_device_sync(self):
-        if self.device_gateway:
-            self.device_gateway.stop()
-            self.device_gateway = None
-        self.device_error = None
-        self.device_retry_at = 0
-        if not self.device_config or not self.device_config['enabled']:
-            return
-        child = None
-        try:
-            child = self.spawn('device-gateway', pipes=True)
-            if bounded_read(child.process.stdout, timeout=10) != {'ready': True}:
-                raise RuntimeError()
-            self.device_gateway = child
-        except Exception:
-            if child:
-                child.stop()
-            self.device_error = device_sync.START_ERROR
-            self.device_retry_at = time.monotonic() + 30
-
-    def device_status(self):
-        config = self.device_config
-        running = self.device_gateway is not None and self.device_gateway.process.poll() is None
-        if self.device_gateway and not running:
-            self.device_gateway.stop()
-            self.device_gateway = None
-            self.device_error = device_sync.START_ERROR
-            self.device_retry_at = time.monotonic() + 30
-        if (config and config['enabled'] and not running and self.device_retry_at
-                and time.monotonic() >= self.device_retry_at):
-            self.refresh_device_sync()
-            running = self.device_gateway is not None and self.device_gateway.process.poll() is None
-        return {'configured': config is not None, 'enabled': bool(config and config['enabled']),
-            'running': running, 'host': config['host'] if config else None,
-            'port': config['port'] if config else None, 'device_id': config['device_id'] if config else None,
-            **device_sync.receipt_status(self.root, config), 'error': self.device_error}
-
     def status(self):
         with self.lock:
             return {'ready': self.ready and self.dashboard is not None and self.dashboard.process.poll() is None,
@@ -328,7 +281,7 @@ class Supervisor:
                 'cloud_enabled': self.settings['cloud_enabled'], 'cloud_configured': self.configured(),
                 'cloud_connected': self.connected(), 'dashboard_url': self.base_url + '/memory/',
                 'setup_url': self.base_url + '/setup/', 'capabilities_url': self.base_url + '/memory/mcp/',
-                'data_root': str(self.root), 'device_sync': self.device_status()}
+                'data_root': str(self.root)}
 
     def client_config(self, format):
         if format not in ('json', 'toml'):
@@ -345,19 +298,6 @@ class Supervisor:
                 return self.status()
             if command == 'client-config' and set(params) == {'format'}:
                 return self.client_config(params['format'])
-            if command == 'import-device-sync' and set(params) == {'directory'}:
-                config = device_sync.import_pairing(self.root, params['directory'])
-                self.device_config = config
-                self.refresh_device_sync()
-                return self.status()
-            if command == 'set-device-sync' and set(params) == {'enabled'} and type(params['enabled']) is bool:
-                if self.device_config is None:
-                    raise ValueError(device_sync.PAIRING_ERROR)
-                config = {**self.device_config, 'enabled': params['enabled']}
-                atomic_json(self.root / 'device-sync.json', config)
-                self.device_config = config
-                self.refresh_device_sync()
-                return self.status()
             if command in ('start-mcp', 'stop-mcp') and not params:
                 enabled = command == 'start-mcp'
                 # Close the gate before killing children; existing adapters have
@@ -496,7 +436,7 @@ class Supervisor:
 
     def close(self):
         self.ready = False
-        for name in ('device_gateway', 'bridge', 'worker', 'dashboard'):
+        for name in ('bridge', 'worker', 'dashboard'):
             child = getattr(self, name, None)
             if child:
                 child.stop()

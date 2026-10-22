@@ -1,20 +1,20 @@
 # EvoMyn · Windows 桌面应用
 
-安装 `EvoMyn-Setup-0.2.11-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
+安装 `EvoMyn-Setup-0.2.12-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
 
-## 设备完成日志同步
+## 设备本地提醒与主动记忆
 
-在「应用设置 → 设备同步」点击「导入设备配对」，选择此前为 ESP 设备配对的服务目录（包含 `app/.env`，源码默认位于 `artifacts/local-memory-mcp/`），然后开启开关。应用会验证并私有保存现有地址、证书和设备凭证，不导入旧数据库，也不会更改设备配置。新设备请先按[硬件说明](../xiaozhi-firmware/main/boards/round-voice-175c/README.md)完成配对。
+提醒的创建、到时提示和完成状态保存在 ESP 设备本地。完成事项不自动写入桌面记忆库，也不依赖电脑在线；桌面不再提供设备配对导入、同步开关或完成日志接收服务。
 
-完成日志直接进入这份桌面记忆库的「日志」，可由桌面和所有接入的 MCP 客户端读取。PC 和设备需网络互通，首次开启时按 Windows 提示允许专用网络访问；建议固定 PC 的局域网地址。此开关独立于 MCP，退出应用时停止，重开时恢复此前状态。PC 离线、休眠或应用退出时，设备持久保留未确认事件，恢复后重试；重复上传不重复记账。
+需要保存为记忆时，可明确让小智通过已有 MCP 归档工具记录内容。此时需让电脑在线、桌面应用运行，并开启 MCP 服务和小智连接。关闭铃声、稍后提醒或取消事项不算完成，也不会自动归档。
 
-「接收中」表示本机网关已启动；「最近收到」表示最近成功接收时间。关闭铃声、稍后提醒或取消事项不算完成。设备最多缓存 16 条完成事件，缓存满时需先恢复连接再完成更多事项。此入口只接收完成日志，设备固件 OTA 仍需单独配置源码发布网关。
+升级保留旧配对文件、凭证及已经归档的记录；旧设置即使保存为已启用，也不会重新启动接收服务。`backend/device_sync.py` 仅保留为历史兼容辅助，不是桌面产品入口。设备固件 OTA 的配置与本地提醒相互独立。
 
 ## 使用
 
 - **记忆**：浏览、搜索、新增、编辑和删除本机记忆，默认分类也可改名和排序；**能力**：按功能包管理 MCP；**客户端接入**：导出本机客户端配置、按需连接小智；**应用设置**：桌面偏好、本地数据及更新。
 - **MCP 开关**：位于左侧导航底部，控制应用拥有的执行进程。关闭后，已连接的客户端也不能继续调用工具，看板仍可浏览和编辑记忆。
-- **能力列表与商城**：展示 PC 提供或可安装的 MCP 功能；圆盘自带的计划提醒不列入其中，仍在圆盘上使用。
+- **能力列表与商城**：展示 PC 提供或可安装的 MCP 功能；设备自带的计划提醒不列入其中，仍在设备上使用。
 - **小智云端连接**：单独控制云连接；同时需要 MCP 总开关开启。Codex、Claude 使用本机 stdio 转发，不需要云端连接。
 - MCP 无需绑定小智即可使用。开启“小智连接”时才检查接入点，缺少时打开引导，说明控制台获取步骤；保存后连接，实际连通才显示已连接。取消或输错不会停止本地 MCP。暂停小智也会保留本地服务。
 - 关闭窗口后保留托盘服务；托盘菜单或设置中的「退出」会停止后台。重复启动会打开已有窗口。
@@ -58,7 +58,7 @@ npm test
 npm run dist
 ```
 
-输出：`desktop/dist/EvoMyn-Setup-0.2.11-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
+输出：`desktop/dist/EvoMyn-Setup-0.2.12-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
 
 ## 发布更新
 
@@ -66,10 +66,10 @@ npm run dist
 
 ```powershell
 # desktop/ 内；使用当前已备份的发布密钥签名
-node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.11-x64.exe --version 0.2.11 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.11/EvoMyn-Setup-0.2.11-x64.exe --output dist/latest.json
-gh release create v0.2.11 dist/EvoMyn-Setup-0.2.11-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.11" --notes "设备完成日志同步到桌面，支持离线补传与四个默认分类。" --draft
+node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.12-x64.exe --version 0.2.12 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.12/EvoMyn-Setup-0.2.12-x64.exe --output dist/latest.json
+gh release create v0.2.12 dist/EvoMyn-Setup-0.2.12-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.12" --notes "提醒保存在圆盘本地，主动记忆通过 MCP 归档；支持编辑记忆分类。" --draft
 # 确认附件齐全后发布
-gh release edit v0.2.11 --repo ArkFishingLab/EvoMyn --draft=false --latest
+gh release edit v0.2.12 --repo ArkFishingLab/EvoMyn --draft=false --latest
 ```
 
 后续发布应同时更新版本号、版本标签、安装包名称和签名说明中的版本专属下载地址。每个正式 Release 均附同名 `latest.json`，固定的 `/releases/latest/download/latest.json` 会指向最新正式版本。先创建草稿并上传全部文件，检查后再发布，避免用户读取不完整版本。省略 `--url` 仍可生成离线说明。

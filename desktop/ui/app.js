@@ -30,15 +30,6 @@ function render(value){
  $('startup').checked=!!value.preferences?.startAtLogin;
  if(document.activeElement!==$('feed'))$('feed').value=value.preferences?.updateFeed||'';
  $('data-path').textContent=s?.data_root?s.data_root+'\\state\\data':'服务启动后显示数据位置';
- const device=s?.device_sync||{};
- $('device-sync').checked=!!device.enabled;$('device-sync').disabled=!ready||!device.configured||value.busy;
- $('device-sync-state').textContent=device.error?'同步异常':!device.configured?'未配置':device.running?'接收中':device.enabled?'正在启动':'已关闭';
- $('device-sync-info').hidden=!device.configured;
- $('device-sync-address').textContent=device.host&&device.port?'https://'+device.host+':'+device.port:'';
- $('device-sync-last').textContent=device.last_received_at?new Date(device.last_received_at).toLocaleString('zh-CN',{hour12:false}):'尚无完成日志';
- $('device-sync-error').hidden=!device.error;$('device-sync-error').textContent=device.error||'';
- $('device-sync-import').disabled=!ready||value.busy;
- $('device-sync-import').textContent=device.configured?'更换设备配对':'导入设备配对';
  for(const id of ['show-data','export-json','export-toml'])$(id).disabled=!ready;
  const titles={'not-configured':'等待配置更新来源',idle:'随时检查新版本',checking:'正在检查更新',available:'有新版本可用','up-to-date':'当前已是最新版本',downloading:'正在下载更新',ready:'更新已准备好',installing:'正在安装更新',error:'更新未完成'};
  $('update-title').textContent=titles[u.state]||'应用更新';$('update-message').textContent=u.message||'';$('update-version').textContent=u.availableVersion?'v'+u.availableVersion:'v'+value.version;
@@ -51,8 +42,7 @@ function render(value){
 function bind(id,action,params={},message){$(id).addEventListener('click',async()=>{try{const result=await command(action,params);if(message&&result)toast(message);}catch{}});}
 document.querySelectorAll('[data-page]').forEach(button=>button.addEventListener('click',()=>command('view',{page:button.dataset.page}).catch(()=>{})));
 for(const id of ['quick-mcp'])$(id).addEventListener('change',()=>command($(id).checked?'start-mcp':'stop-mcp').catch(()=>{}));
-for(const [id,action] of [['cloud','set-cloud'],['startup','set-startup'],['device-sync','set-device-sync']])$(id).addEventListener('change',()=>command(action,{enabled:$(id).checked}).catch(()=>{}));
-bind('device-sync-import','import-device-sync',{},'配对已导入，请开启设备同步');
+for(const [id,action] of [['cloud','set-cloud'],['startup','set-startup']])$(id).addEventListener('change',()=>command(action,{enabled:$(id).checked}).catch(()=>{}));
 bind('loading-settings','view',{page:'settings'});bind('quit','quit');bind('show-data','show-data');bind('export-json','export-config',{format:'json'},'已导出接入配置');bind('export-toml','export-config',{format:'toml'},'已导出接入配置');
 bind('open-console','open-xiaozhi-console');bind('setup-retry','connect-xiaozhi',{endpoint:''});
 $('connection-form').addEventListener('submit',async event=>{event.preventDefault();try{await command('connect-xiaozhi',{endpoint:$('endpoint').value});$('endpoint').value='';}catch{}});

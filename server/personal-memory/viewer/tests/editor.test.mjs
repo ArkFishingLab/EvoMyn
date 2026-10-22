@@ -20,7 +20,7 @@ test('editing pins the original identity and revision and never sends hidden fie
   assert.equal(form.tags, '研究,记录\n材料');
   form.category = 'people'; form.title = '新标题';
   const mutation = editor.buildMutation(form, {record:original,categories});
-  assert.deepEqual(mutation, {action:'update',id:record.id,revision:1,changes:{title:'新标题',body:record.body,date:'2024-02',date_end:'ongoing',tags:record.tags}});
+  assert.deepEqual(mutation, {action:'update',id:record.id,revision:1,changes:{category:'people',title:'新标题',body:record.body,date:'2024-02',date_end:'ongoing',tags:record.tags}});
   assert.deepEqual(record, original);
 });
 
@@ -29,6 +29,10 @@ test('title, body, and a valid creation category are required', () => {
   for (const [field, value] of [['title','  '],['body','\n'],['category','unknown']]) {
     assert.throws(() => editor.buildMutation({...draft(),[field]:value},{categories}), error => error.field === field);
   }
+});
+
+test('editing rejects an unavailable category', () => {
+  assert.throws(() => editor.buildMutation({...draft(),category:'missing'},{record,categories}), error => error.field === 'category');
 });
 
 test('dates accept real partial dates and reject impossible dates or backwards periods', () => {
@@ -231,4 +235,26 @@ test('capability loss preserves draft and blocks submission until capability ret
   controller.setAccess({enabled:true,csrf:'renewed'});
   assert.equal(ui.nodes['[data-editor-submit]'].disabled,false);
   assert.equal(ui.inputs.body.value,'保留我的内容');
+});
+
+
+test('controller allows a category-only edit and preserves draft until save', async t => {
+  const ui = dialogFixture(t);
+  let posted, saved;
+  globalThis.fetch = async (_url,options) => { posted = JSON.parse(options.body); return response({record:{...record,category:'people',revision:2}}); };
+  const controller = mountRecordEditor(ui.dialog,{getCategories:() => ({journal:{label:'日志'},people:{label:'人脉'}}),onSuccess:value => {saved=value;},onReload:async()=>record});
+  controller.setAccess({enabled:true,csrf:'token'});
+  controller.openRecord(record);
+  assert.equal(ui.inputs.category.disabled,false);
+  ui.inputs.category.value = 'people';
+  ui.click('[data-editor-cancel]');
+  assert.equal(ui.nodes['[data-editor-confirm]'].hidden,false);
+  ui.click('[data-editor-keep]');
+  assert.equal(ui.inputs.category.value,'people');
+  await ui.submit();
+  assert.equal(posted.changes.category,'people');
+  assert.equal(posted.id,record.id);
+  assert.equal(posted.revision,1);
+  assert.equal(saved.record.category,'people');
+  assert.equal(ui.dialog.open,false);
 });

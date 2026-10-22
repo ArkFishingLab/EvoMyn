@@ -33,6 +33,7 @@ public:
     static constexpr size_t MaxJournal = 16, MaxReceipts = 128;
     PlannerSnapshot snapshot;
     std::vector<std::string> fired;
+    // Legacy archive payloads are retained for compatibility, never appended locally.
     std::vector<PlannerJournal> journal;
     std::vector<PlannerReceipt> receipts;
     // Durable rejection filter keeps evicted requests from ever executing again.
@@ -219,6 +220,17 @@ public:
                 std::remove_if(next.snapshot.tasks.begin(), next.snapshot.tasks.end(),
                                [](const auto& task) { return task.status == "cancelled"; }),
                 next.snapshot.tasks.end());
+            // Keep completed state until capacity is needed. Reclaim only one
+            // completed item, preserving pending work and durable replay protection.
+            if (next.snapshot.tasks.size() >= 32) {
+                auto completed =
+                    std::find_if(next.snapshot.tasks.begin(), next.snapshot.tasks.end(),
+                                 [](const auto& task) { return task.status == "completed"; });
+                if (completed != next.snapshot.tasks.end()) {
+                    next.RememberRequest("task:" + completed->id);
+                    next.snapshot.tasks.erase(completed);
+                }
+            }
             if (r.expected_revision != 0 || next.snapshot.tasks.size() >= 32 || !ValidTask(r.task))
                 return fail("事项无效或本地事项已满（32）");
             id = "local-" + r.request_id;
@@ -245,8 +257,6 @@ public:
                                                       x.task_revision == t->revision;
                                            });
             if (r.action == "complete") {
-                if (journal.size() >= MaxJournal)
-                    return fail("完成日志待归档已满（16），请联网归档后重试");
                 if (t->repeat != "none" && occurrence == next.snapshot.reminders.end())
                     return fail("本次提醒已完成或已变化");
                 const int64_t scheduled =
@@ -258,8 +268,8 @@ public:
                 if (std::any_of(journal.begin(), journal.end(),
                                 [&](const auto& x) { return x.event_id == event; }))
                     return fail("本次事项已经完成");
-                next.journal.push_back(
-                    {event, device, t->id, t->title, t->body, scheduled, now, r.note});
+                // Completion is committed with task state and its request receipt.
+                // It does not enqueue a PC upload or depend on legacy archive capacity.
                 if (t->repeat == "none")
                     t->status = "completed";
                 else {

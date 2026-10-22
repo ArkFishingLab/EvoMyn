@@ -120,12 +120,17 @@ class RecordEditorTests(unittest.TestCase):
         resource.parent.mkdir()
         resource.write_text('fixture')
         one = self.store.save({'category': 'resource', 'title': '文档', 'body': '原文', 'file_path': str(resource), 'fields': {'用途': '参考'}}, index=False)
-        status, response = self.post({'action': 'update', 'id': one['id'], 'revision': 1, 'changes': {'body': '修改正文'}})
+        status, response = self.post({'action': 'update', 'id': one['id'], 'revision': 1, 'changes': {'body': '修改正文', 'category': 'people'}})
         self.assertEqual(status, 200)
         self.assertNotIn('file_path', response['record'])
         self.assertNotIn('memory_id', response['record'])
         self.assertEqual(self.store.get(one['id'])['file_path'], str(resource.resolve()))
         self.assertEqual(response['record']['fields'], {'用途': '参考'})
+        self.assertEqual(response['record']['category'], 'people')
+        with urlopen(self.base + '/api/files/' + one['id'], timeout=5) as download:
+            self.assertEqual(download.read(), b'fixture')
+        self.assertEqual(self.post({'action': 'update', 'id': one['id'], 'revision': 2, 'changes': {'category': 'missing'}})[0], 400)
+        self.assertEqual(self.store.get(one['id'])['category'], 'people')
 
 
 if __name__ == '__main__': unittest.main()

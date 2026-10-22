@@ -34,8 +34,8 @@ export function buildMutation(draft, {record = null, categories = []} = {}) {
   if (changes.date_end && (!start || (changes.date_end !== 'ongoing' && (!end || end[1] < start[0])))) {
     throw failure('结束日期需配合开始日期填写，不能早于开始日期；持续至今可填写 ongoing。',{field:'date_end'});
   }
-  if (record) return {action:'update',...identity(record),changes};
   if (!categories.includes(draft.category)) throw failure('请选择可用的分类。',{field:'category'});
+  if (record) return {action:'update',...identity(record),changes:{category:draft.category,...changes}};
   return {action:'create',record:{category:draft.category,...changes}};
 }
 

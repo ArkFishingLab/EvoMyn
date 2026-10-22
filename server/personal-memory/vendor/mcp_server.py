@@ -42,7 +42,7 @@ def archive_record(category: str, title: str, body: str, occurrence_date: str | 
 @mcp.tool(structured_output=True)
 def archive_update(record_id: str, changes: dict, expected_revision: int | None = None) -> dict[str, Any]:
     """根据用户新信息修改已有记录，保留历史。先读取记录。fields是整对象替换，请合并已有字段。
-    changes 可包含title/body/date/date_end/fields/tags/links/steps/file_path/href，不能修改id或category。"""
+    changes 可包含category/title/body/date/date_end/fields/tags/links/steps/file_path/href，category 使用 archive_status 返回的分类编号；不能修改id。"""
     return store.update(record_id, changes, expected_revision)
 
 @mcp.tool(structured_output=True, description=(

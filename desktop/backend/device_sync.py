@@ -1,4 +1,4 @@
-"""Explicit, private desktop pairing and a fixed device completion listener."""
+"""Legacy pairing compatibility helpers; not started or exposed by the desktop app."""
 from datetime import datetime, timezone
 import io
 import ipaddress
@@ -12,7 +12,7 @@ import uuid
 from paths import atomic_json, private_permissions, reject_links
 
 PAIRING_ERROR = '设备配对配置无效，请检查所选运行目录、局域网地址和 TLS 证书。'
-START_ERROR = '设备同步暂时无法启动，请检查保存的地址、端口和证书；应用将在 30 秒后重试。'
+START_ERROR = '旧版接收工具无法启动，请检查保存的地址、端口和证书。'
 KEYS = frozenset(('DEVICE_GATEWAY_HOST', 'DEVICE_GATEWAY_PORT', 'DEVICE_GATEWAY_ALLOWED_HOSTS',
     'DEVICE_GATEWAY_CERT', 'DEVICE_GATEWAY_KEY', 'PLANNER_DEVICE_ID', 'PLANNER_DEVICE_TOKEN'))
 FIELDS = frozenset(('version', 'pairing_id', 'enabled', 'host', 'port', 'allowed_hosts', 'device_id', 'token', 'cert', 'key'))
@@ -158,7 +158,7 @@ def receipt_status(root, config):
 
 
 def serve(root):
-    """Called only by the fixed owned role; never reads gateway environment."""
+    """Legacy standalone receiver; never called by the desktop application."""
     from device_gateway import create_device_server
     config = load_config(root)
     if not config or not config['enabled']:

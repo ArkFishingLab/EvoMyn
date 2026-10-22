@@ -36,7 +36,6 @@ function updateTray(){
   {label:'打开EvoMyn',click:reveal},
   {label:'MCP 服务',type:'checkbox',checked:!!serviceStatus?.mcp_enabled,enabled:!!serviceStatus?.ready&&!busy,click:item=>perform(item.checked?'start-mcp':'stop-mcp').catch(report)},
   {label:'小智云端',type:'checkbox',checked:!!serviceStatus?.cloud_enabled&&!!serviceStatus?.cloud_configured,enabled:!!serviceStatus?.ready&&!busy,click:item=>perform('set-cloud',{enabled:item.checked}).catch(report)},
-  {label:'设备同步',type:'checkbox',checked:!!serviceStatus?.device_sync?.enabled,enabled:!!serviceStatus?.device_sync?.configured&&!busy,click:item=>perform('set-device-sync',{enabled:item.checked}).catch(report)},
   {type:'separator'},{label:'退出',click:()=>quit()}
  ]));
 }
@@ -90,11 +89,6 @@ async function perform(action,parameters={}){
  }
  if(busy)throw new Error('服务正在切换，请稍后重试。');busy=true;errorMessage='';broadcast();
  try{
-  if(action==='import-device-sync'){
-   const selected=await dialog.showOpenDialog(window,{title:'选择已配对设备的服务目录（包含 app/.env）',properties:['openDirectory']});
-   if(selected.canceled||!selected.filePaths.length)return null;
-   parameters={directory:selected.filePaths[0]};
-  }
   if(action==='start-mcp')serviceStatus=await connection.start();
   else if(action==='connect-xiaozhi'){cloudStartedAt=Date.now();serviceStatus=await connection.connect(parameters.endpoint);}
   else if(action==='use-local'){serviceStatus=await connection.useLocal();cloudStartedAt=null;}
@@ -292,6 +286,23 @@ async function smokeTest(){
   if(!serviceStatus?.mcp_enabled)await perform('use-local');await showPage('memory');
   assert.equal(serviceStatus.ready,true);assert.equal(await view.webContents.executeJavaScript('document.title'), '记忆 · EvoMyn');
   evidence.dashboard=true;evidence.mcp=await smokeMcp();if(process.env.PERSONAL_MEMORY_SMOKE_EXPECT_VERSION)assert.equal(evidence.mcp.preserved,true);
+  const wait=async predicate=>{const deadline=Date.now()+20000;while(!await predicate()){if(Date.now()>deadline)throw new Error('Memory editor acceptance timed out');await new Promise(resolve=>setTimeout(resolve,100));}};
+  await view.webContents.reload();
+  await wait(()=>view.webContents.executeJavaScript("document.getElementById('connectionStatus')?.textContent==='已连接'&&!document.getElementById('createRecord').hidden"));
+  const archive=()=>view.webContents.executeJavaScript("fetch('./api/records').then(response=>response.json())");
+  const before=await archive(),original=before.records.find(record=>record.title==='Desktop acceptance fixture');assert.ok(original);
+  const targetCategory=original.category==='journal'?'people':'journal';
+  await view.webContents.executeJavaScript('location.hash='+JSON.stringify('#'+original.category+'/'+encodeURIComponent(original.id)));
+  await wait(()=>view.webContents.executeJavaScript("document.getElementById('detail').open&&!document.getElementById('recordActions').hidden"));
+  await view.webContents.executeJavaScript("document.getElementById('editRecord').click()");
+  assert.equal(await view.webContents.executeJavaScript("document.querySelector('[data-editor-form]').elements.category.disabled"),false);
+  await view.webContents.executeJavaScript("(()=>{const form=document.querySelector('[data-editor-form]');form.elements.category.value="+JSON.stringify(targetCategory)+";form.elements.category.dispatchEvent(new Event('input',{bubbles:true}));form.requestSubmit();})()");
+  await wait(()=>view.webContents.executeJavaScript("!document.getElementById('recordEditor').open"));
+  const after=await archive(),edited=after.records.find(record=>record.id===original.id);assert.ok(edited);
+  assert.equal(after.records.length,before.records.length);assert.equal(edited.category,targetCategory);assert.equal(edited.revision,original.revision+1);
+  for(const field of ['id','title','body','tags','fields','links','steps','href'])assert.deepEqual(edited[field],original[field]);
+  for(const field of ['date','date_end'])assert.equal(edited[field]||'',original[field]||'');
+  evidence.categoryEditing={idPreserved:true,revisionAdvanced:true,countPreserved:true,category:targetCategory};
   await window.webContents.executeJavaScript("window.personalMemory.command('stop-mcp')");assert.equal(serviceStatus.mcp_enabled,false);assert.equal(serviceStatus.ready,true);evidence.nativeIPC=true;
   await perform('set-cloud',{enabled:true});assert.equal(serviceStatus.mcp_enabled,false);assert.equal(serviceStatus.cloud_connected,false);assert.equal(page,'setup');
   await perform('use-local');assert.equal(serviceStatus.mcp_enabled,true);evidence.switches=true;
@@ -299,25 +310,9 @@ async function smokeTest(){
   window.close();assert.equal(window.isVisible(),false);reveal();assert.equal(window.isVisible(),true);evidence.trayLifecycle=true;
   await showPage('settings');await new Promise(resolve=>setTimeout(resolve,1000));
   evidence.settingsDOM=await window.webContents.executeJavaScript("({page:state?.page,hidden:document.getElementById('settings').hidden,active:document.querySelector('.nav.active')?.dataset.page})");assert.equal(evidence.settingsDOM.hidden,false);assert.equal(evidence.settingsDOM.active,'settings');
-  const pairingFixture=path.join(home,'paired runtime');
-  if(fs.existsSync(path.join(pairingFixture,'app','.env'))){
-   assert.equal(await window.webContents.executeJavaScript("document.getElementById('device-sync').disabled"),true);
-   const picker=dialog.showOpenDialog;
-   try{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[pairingFixture]});await window.webContents.executeJavaScript("window.personalMemory.command('import-device-sync')");}finally{dialog.showOpenDialog=picker;}
-   assert.equal(serviceStatus.device_sync.configured,true);assert.equal(serviceStatus.device_sync.enabled,false);
-   await perform('stop-mcp');await window.webContents.executeJavaScript("window.personalMemory.command('set-device-sync',{enabled:true})");
-   assert.equal(serviceStatus.device_sync.running,true);assert.equal(serviceStatus.mcp_enabled,false);
-   const event={event_id:'desktop-smoke-completion',device_id:'fixture-device',task_id:'fixture-task',title:'Isolated device completion',body:'Packaged TLS acceptance only.',note:'',scheduled_at:null,completed_at:1780000000};
-   const post=()=>new Promise((resolve,reject)=>{const request=require('node:https').request({hostname:'127.0.0.1',port:serviceStatus.device_sync.port,path:'/device/archive',method:'POST',ca:fs.readFileSync(path.join(pairingFixture,'cert.pem')),headers:{Authorization:'Bearer '+'t'.repeat(64),'Device-Id':'fixture-device','Content-Type':'application/json'}},response=>{let data='';response.on('data',chunk=>data+=chunk);response.on('end',()=>{try{assert.equal(response.statusCode,200);resolve(JSON.parse(data));}catch(error){reject(error);}});});request.on('error',reject);request.setTimeout(15000,()=>request.destroy(new Error('Isolated TLS receipt timed out')));const body=JSON.stringify(event);request.setHeader('Content-Length',Buffer.byteLength(body));request.end(body);});
-   const receipt=await post();assert.equal((await post()).record_id,receipt.record_id);
-   serviceStatus=await service.request('status');broadcast();await new Promise(resolve=>setTimeout(resolve,200));
-   assert.equal(serviceStatus.device_sync.received_count,2);
-   assert.equal(await window.webContents.executeJavaScript("document.getElementById('device-sync-state').textContent"),'接收中');
-   assert.notEqual(await window.webContents.executeJavaScript("document.getElementById('device-sync-last').textContent"),'尚无完成日志');
-   await fsp.writeFile(path.join(home,'device-sync-settings.png'),(await window.webContents.capturePage()).toPNG());
-   await perform('set-device-sync',{enabled:false});assert.equal(serviceStatus.device_sync.running,false);
-   await perform('start-mcp');evidence.deviceSync={nativeImport:true,independentSwitch:true,tlsReceipt:true,deduplicated:true,statusVisible:true};
-  }
+  assert.equal('device_sync' in serviceStatus,false);
+  assert.equal(await window.webContents.executeJavaScript("document.querySelector('[id^=device-sync]')===null"),true);
+  evidence.localReminders=true;
   await fsp.writeFile(path.join(home,'desktop-settings.png'),(await window.webContents.capturePage()).toPNG());
   await showPage('memory');await new Promise(resolve=>setTimeout(resolve,600));await fsp.writeFile(path.join(home,'desktop-dashboard.png'),(await window.capturePage()).toPNG());
   await service.stop();assert.equal(fs.existsSync(path.join(home,'service','desktop-session.json')),false);evidence.cleanShutdown=true;

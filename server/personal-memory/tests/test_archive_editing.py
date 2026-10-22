@@ -31,6 +31,34 @@ class ArchiveEditingTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.store.update(one['id'], {'body': 'stale'}, expected_revision=1, index=False)
         self.assertEqual(self.store.get(one['id'])['body'], '第二次练习')
 
+    def test_reclassification_preserves_identity_history_links_and_counts(self):
+        one = self.store.save(self.record(fields={'课程': '画画'}), index=False)
+        linked = self.store.save(self.record(links=[one['id']]), index=False)
+        custom = self.store.categories.create('学习')['id']
+        for revision, category in enumerate(['people', custom], 1):
+            updated = self.store.update(one['id'], {'category': category}, expected_revision=revision, index=False)
+            self.assertEqual(updated['id'], one['id'])
+            self.assertEqual(updated['created_at'], one['created_at'])
+            self.assertEqual(updated['fields'], one['fields'])
+            self.assertEqual([r['id'] for r in self.store.list(category=category)], [one['id']])
+            self.assertEqual(next(c['count'] for c in self.store.categories.list() if c['id'] == category), 1)
+        self.assertEqual([r['category'] for r in self.store.history(one['id'])], ['journal', 'people', custom])
+        self.assertEqual(self.store.get(linked['id'])['links'], [one['id']])
+        self.assertEqual([r['id'] for r in self.store.list(category='journal')], [linked['id']])
+        for changes, revision in [({'category': 'missing'}, 3), ({'category': 'journal'}, 1)]:
+            with self.assertRaises(ValueError):
+                self.store.update(one['id'], changes, expected_revision=revision, index=False)
+        self.assertEqual(self.store.get(one['id'])['category'], custom)
+        self.assertEqual(len(self.store.history(one['id'])), 3)
+
+    def test_reclassification_keeps_registered_attachment(self):
+        attachment = Path(self.tmp.name) / 'resource.txt'
+        attachment.write_text('fixture')
+        one = self.store.save({'category': 'resource', 'title': '资料', 'body': '附件', 'file_path': str(attachment)}, index=False)
+        two = self.store.update(one['id'], {'category': 'background'}, expected_revision=1, index=False)
+        self.assertEqual(two['href'], one['href'])
+        self.assertEqual(self.store.attachment(one['id']), attachment.resolve())
+
     def test_delete_checks_revision_removes_history_and_unlinks_atomically(self):
         one = self.store.save(self.record(), index=False)
         two = self.store.save(self.record(links=[one['id']]), index=False)

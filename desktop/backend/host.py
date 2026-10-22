@@ -10,7 +10,6 @@ import sys
 
 from client import LIMIT, loopback_open, rpc
 from paths import atomic_json
-from device_sync import serve as serve_device_sync
 
 
 def load_module(name, file):
@@ -187,7 +186,7 @@ async def bridge(root, instance):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--role', required=True, choices=('worker', 'dashboard', 'bridge', 'device-gateway'))
+    parser.add_argument('--role', required=True, choices=('worker', 'dashboard', 'bridge'))
     parser.add_argument('--data-root', type=Path, required=True)
     parser.add_argument('--instance', default='')
     args = parser.parse_args()
@@ -199,8 +198,6 @@ def main():
         asyncio.run(worker(root))
     elif args.role == 'dashboard':
         dashboard(root)
-    elif args.role == 'device-gateway':
-        serve_device_sync(root)
     else:
         asyncio.run(bridge(root, args.instance))
 

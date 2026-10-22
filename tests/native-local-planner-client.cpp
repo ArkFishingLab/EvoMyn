@@ -107,39 +107,60 @@ int main() {
   assert(client.SetVolume(73));
   Run();
   assert(client.View().volume == 55);
-  fail_commit = false;
   LocalPlannerRequest finish{"finish-1", "complete", task.id, "",
                              1,          {},         "done"};
+  const auto before_finish = durable["local_v2"];
+  assert(Flag(client.Submit(finish), "queued"));
+  Run();
+  assert(!Flag(client.Submit(finish), "saved"));
+  assert(client.View().snapshot.tasks.front().status == "pending");
+  assert(durable["local_v2"] == before_finish);
+  fail_commit = false;
   assert(Flag(client.Submit(finish), "queued"));
   Run();
   assert(Flag(client.Submit(finish), "saved"));
-  const auto journal = client.NextJournal();
-  assert(!journal.empty());
-  auto json = cJSON_Parse(journal.c_str());
-  assert(cJSON_GetArraySize(json) == 8);
-  assert(std::string(cJSON_GetObjectItem(json, "device_id")->valuestring) ==
-         "02:00:00:00:00:01");
-  const std::string event = cJSON_GetObjectItem(json, "event_id")->valuestring;
-  cJSON_Delete(json);
-  fail_commit = true;
-  assert(client.AcknowledgeJournal(event));
-  Run();
-  assert(client.NextJournal() == journal); // failed ACK cannot drop outbox
-  fail_commit = false;
-  assert(client.AcknowledgeJournal(event));
-  Run();
-  assert(client.NextJournal().empty() && client.View().snapshot.tasks.empty());
-  assert(Flag(client.Submit(finish),
-              "saved")); // ACK/task reclamation preserves receipt
+  assert(client.NextJournal().empty());
+  assert(client.View().snapshot.tasks.front().status == "completed");
+  assert(client.View().pending == 0);
+  assert(client.List().find("journal_pending") == std::string::npos);
+  assert(client.GetContext().find("journal_pending") == std::string::npos);
   // Reboot reads committed state, including completion receipt and alarm
   // volume.
   PlannerClient reboot;
   reboot.Start({}, {});
   Run();
   assert(Flag(reboot.Submit(finish), "saved") && reboot.NextJournal().empty());
+  assert(reboot.View().snapshot.tasks.front().status == "completed");
   assert(reboot.SetVolume(73));
   Run();
   assert(reboot.View().volume == 73);
+  // Upgrade preserves even a full old queue, but does not advertise upload work.
+  LocalPlanner legacy_queue;
+  for (size_t i = 0; i < LocalPlanner::MaxJournal; ++i)
+    legacy_queue.journal.push_back({"old-event-" + std::to_string(i), "device",
+                                   "old-task-" + std::to_string(i), "Old", "body",
+                                   now, now, "note"});
+  durable["local_v2"] = EncodeLocalPlanner(legacy_queue);
+  PlannerClient upgraded;
+  upgraded.Start({}, {});
+  Run();
+  assert(upgraded.Ready() && upgraded.View().pending == 0);
+  assert(!upgraded.KeepStandby());
+  assert(upgraded.List().find("journal_pending") == std::string::npos);
+  const auto old_journal = upgraded.NextJournal();
+  assert(!old_journal.empty());
+  assert(Flag(upgraded.Submit(request), "queued"));
+  Run();
+  assert(Flag(upgraded.Submit(request), "saved"));
+  assert(Flag(upgraded.Submit(finish), "queued"));
+  Run();
+  assert(Flag(upgraded.Submit(finish), "saved"));
+  assert(upgraded.NextJournal() == old_journal);
+  assert(upgraded.View().snapshot.tasks.front().status == "completed");
+  LocalPlanner persisted;
+  std::string upgrade_error;
+  assert(DecodeLocalPlanner(durable["local_v2"], persisted, upgrade_error));
+  assert(persisted.journal.size() == LocalPlanner::MaxJournal);
   // Existing legacy cache must survive a failed migration verbatim.
   durable.clear();
   PlannerModel old;

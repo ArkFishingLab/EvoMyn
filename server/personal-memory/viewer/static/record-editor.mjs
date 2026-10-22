@@ -18,7 +18,7 @@ export function mountRecordEditor(dialog, {getCategories, onSuccess, onReload, o
   function controls() {
     const busy = client.busy || reloading;
     fields.disabled = busy;
-    form.elements.namedItem('category').disabled = mode !== 'create';
+    form.elements.namedItem('category').disabled = mode === 'delete';
     submit.disabled = busy || !client.enabled || conflict || Boolean(confirmation);
     submit.textContent = busy ? (reloading ? '正在载入…' : mode === 'delete' ? '正在删除…' : '正在保存…') : mode === 'delete' ? '删除这条记忆' : '保存记忆';
     reload.hidden = !conflict;
@@ -38,7 +38,7 @@ export function mountRecordEditor(dialog, {getCategories, onSuccess, onReload, o
     for (const name of names) { form.elements.namedItem(name).value = draft[name]; form.elements.namedItem(name).removeAttribute('aria-invalid'); }
     baseline = JSON.stringify(values());
     find('[data-editor-delete-title]').textContent = original?.title || '';
-    find('#editorCategoryHelp').textContent = mode === 'create' ? '可在「管理分类」中修改分类名称和顺序。' : '编辑时保留所属分类；分类名称和顺序可在「管理分类」中修改。';
+    find('#editorCategoryHelp').textContent = mode === 'create' ? '可在「管理分类」中修改分类名称和顺序。' : '更换分类会保留记忆内容、附件、关联和历史。';
     conflict = false; accessError = false; confirmation = null; confirm.hidden = true; setError(); controls();
   }
   function showConfirmation(action) {

@@ -154,7 +154,6 @@ void BuildPlannerUi(PlannerUi& u, const PlannerUiCallbacks& cb) {
 void RenderPlanner(PlannerUi& u, const PlannerView& view) {
     const char* sync = !view.configured ? "本地提醒正在启动"
                        : !view.cached   ? "本地存储待就绪"
-                       : view.pending   ? "已完成 · 等待电脑归档"
                        : view.online    ? "本地已保存"
                                         : "本地存储待恢复";
     warm::SetText(u.sync, view.error.empty() ? sync : view.error.c_str());

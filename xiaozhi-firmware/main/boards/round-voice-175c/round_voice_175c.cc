@@ -176,7 +176,6 @@ private:
     bool auto_sleep_enabled_ = true;
     round_voice::RoundWifi wifi_;
     round_voice::PlannerClient planner_;
-    round_voice::RoundServices services_;
     round_voice::RoundUpdate update_;
     std::atomic<bool> update_render_pending_{false};
     bool update_audio_paused_ = false;
@@ -190,8 +189,6 @@ private:
     std::vector<AudioStreamPacket> alarm_packets_;
 
     void StartLocalServices() {
-        services_.Start(&planner_, ROUND_SERVICE_BASE, ROUND_SERVICE_CA, ROUND_SERVICE_TOKEN,
-                        ROUND_SERVICE_DEVICE);
         display_->BindUpdate(&update_);
         update_.Start(
             ROUND_SERVICE_BASE, ROUND_SERVICE_CA, ROUND_SERVICE_TOKEN, ROUND_SERVICE_DEVICE,
@@ -705,7 +702,7 @@ private:
         mcp_server.AddTool(
             "self.planner.list",
             "List authoritative local notes/tasks/events, revisions and occurrence IDs. "
-            "Includes pending archive count and local storage errors. "
+            "Includes local storage readiness and errors. "
             "Use the current task revision as expected_revision when editing/completing.",
             PropertyList(), [this](const PropertyList&) { return planner_.List(); });
         const std::string save_contract =
@@ -752,12 +749,11 @@ private:
                 });
         }
         for (const auto& action : {std::string("complete"), std::string("cancel")}) {
-            PropertyList fields(
-                {Property("request_id", kPropertyTypeString).SetMaxLength(64),
-                 Property("task_id", kPropertyTypeString).SetMaxLength(128),
-                 Property("expected_revision", kPropertyTypeInteger, 1, INT32_MAX),
-                 Property("occurrence_id", kPropertyTypeString, std::string("")).SetMaxLength(128),
-                 Property("note", kPropertyTypeString, std::string("")).SetMaxLength(768)});
+            PropertyList fields({Property("request_id", kPropertyTypeString).SetMaxLength(64),
+                                 Property("task_id", kPropertyTypeString).SetMaxLength(128),
+                                 Property("expected_revision", kPropertyTypeInteger, 1, INT32_MAX),
+                                 Property("occurrence_id", kPropertyTypeString, std::string(""))
+                                     .SetMaxLength(128)});
             const auto name =
                 action == "complete" ? "self.planner.complete" : "self.planner.cancel";
             mcp_server.AddTool(
@@ -766,8 +762,9 @@ private:
                     action == "complete"
                         ? "Complete a local item. Repeating items REQUIRE the exact occurrence_id "
                           "from list; "
-                          "only this action writes a completion journal for later PC archival."
-                        : "Cancel an entire local item; do not write a completion journal.") +
+                          "Completion is saved on the device and is not automatically sent to the "
+                          "PC."
+                        : "Cancel an entire local item or recurring series on the device.") +
                     save_contract,
                 fields, [this, action](const PropertyList& properties) {
                     round_voice::LocalPlannerRequest request;
@@ -776,7 +773,6 @@ private:
                     request.task_id = properties["task_id"].value<std::string>();
                     request.expected_revision = properties["expected_revision"].value<int>();
                     request.occurrence_id = properties["occurrence_id"].value<std::string>();
-                    request.note = properties["note"].value<std::string>();
                     return planner_.Submit(request);
                 });
         }

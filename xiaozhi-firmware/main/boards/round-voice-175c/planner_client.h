@@ -21,6 +21,7 @@ public:
     std::string Submit(const LocalPlannerRequest& request);
     std::string GetContext();
     std::string List();
+    // Legacy compatibility only; the board no longer starts an archive worker.
     // JSON has exactly eight journal fields; remains available until ACK commits.
     std::string NextJournal();
     bool AcknowledgeJournal(const std::string& event_id);

@@ -137,7 +137,7 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
                 elif path.startswith('/api/files/'):
                     record_id = unquote(path[len('/api/files/'):])
                     record = next((json.loads(row['payload']) for row in read_rows() if json.loads(row['payload']).get('id') == record_id), None)
-                    if not record or record.get('category') != 'resource' or not record.get('file_path'):
+                    if not record or not record.get('file_path'):
                         raise FileNotFoundError()
                     file = Path(record['file_path']).resolve()
                     if not file.is_relative_to(resource_root) or not file.is_file():
@@ -243,10 +243,9 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
                     for record_id in result['updated_links']: index_worker.schedule(record_id)
                     return self.respond({'deleted': result['deleted']})
                 fields = value['record'] if action == 'create' else value['changes']
-                allowed = {'title', 'body', 'date', 'date_end', 'tags', 'href'}
-                if action == 'create': allowed.add('category')
+                allowed = {'category', 'title', 'body', 'date', 'date_end', 'tags', 'href'}
                 if not isinstance(fields, dict) or not fields or not set(fields) <= allowed:
-                    raise ValueError('只能编辑标题、正文、时间、标签和链接。')
+                    raise ValueError('只能编辑分类、标题、正文、时间、标签和链接。')
                 for key in ('category', 'title', 'body', 'date', 'date_end', 'href'):
                     if key in fields and (not isinstance(fields[key], str) or '\x00' in fields[key]):
                         raise ValueError('文字字段格式不正确。')

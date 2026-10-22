@@ -27,8 +27,7 @@ function validateCommand(action,parameters){
  const keys=Object.keys(parameters).sort().join(',');
  if(['status','start-mcp','stop-mcp','show-data','update-status','update-check','update-download','update-install','update-import','preferences','quit','use-local','open-xiaozhi-console'].includes(action)&&keys==='')return;
  if(action==='connect-xiaozhi'&&keys==='endpoint'&&typeof parameters.endpoint==='string'&&parameters.endpoint.length<=4096)return;
- if(action==='import-device-sync'&&keys==='')return;
- if(['set-cloud','set-device-sync'].includes(action)&&keys==='enabled'&&typeof parameters.enabled==='boolean')return;
+ if(action==='set-cloud'&&keys==='enabled'&&typeof parameters.enabled==='boolean')return;
  if(action==='save-endpoint'&&keys==='endpoint'&&typeof parameters.endpoint==='string'&&parameters.endpoint.length<=8192)return;
  if(action==='export-config'&&keys==='format'&&['json','toml'].includes(parameters.format))return;
  if(action==='set-startup'&&keys==='enabled'&&typeof parameters.enabled==='boolean')return;

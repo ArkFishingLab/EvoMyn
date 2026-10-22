@@ -145,7 +145,6 @@ std::string PlannerClient::GetContext() {
     auto view = View();
     cJSON_AddBoolToObject(root, "ready", ready_.load());
     cJSON_AddNumberToObject(root, "revision", view.snapshot.revision);
-    cJSON_AddNumberToObject(root, "journal_pending", view.pending);
     cJSON_AddStringToObject(root, "error", view.error.c_str());
     return Dump(root);
 }
@@ -253,16 +252,14 @@ void PlannerClient::Publish() {
     next.cached = ready_.load();
     next.configured = true;
     next.online = ready_.load();  // Local availability, never cloud connectivity.
-    next.pending = model_.journal.size();
     next.volume = model_.volume;
     next.error = error_;
     if (!PlannerTime(time(nullptr)) && next.error.empty())
         next.error = "时间待同步，请先联网校时";
-    keep_standby_.store(!next.snapshot.reminders.empty() || next.pending > 0);
+    keep_standby_.store(!next.snapshot.reminders.empty());
     auto listing = cJSON_CreateObject();
     cJSON_AddBoolToObject(listing, "ready", ready_.load());
     cJSON_AddNumberToObject(listing, "revision", next.snapshot.revision);
-    cJSON_AddNumberToObject(listing, "journal_pending", next.pending);
     cJSON_AddNumberToObject(listing, "receipt_history_limit", LocalPlanner::MaxReceipts);
     cJSON_AddNumberToObject(listing, "receipt_history_used", model_.receipts.size());
     cJSON_AddBoolToObject(listing, "server_imported", model_.imported);
