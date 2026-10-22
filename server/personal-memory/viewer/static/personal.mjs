@@ -4,6 +4,7 @@
 import { $, $$, esc, stateHtml, showHtmlDetail } from './personal-shared.mjs';
 import { categoryMap, selectRecords, relatedRecords, summarize, safeResourceUrl, formatRecordDate } from './personal-model.mjs';
 import { mountCategories } from './categories.mjs';
+import { mountRecordEditor } from './record-editor.mjs';
 
 let records = [];
 let categories = categoryMap();
@@ -11,9 +12,40 @@ let category = 'overview';
 let payloadSignature = '';
 let ready = false;
 let loading = false;
-let nativeStatus = null;
 let triggerRecordId = null;
 let archiveError = false;
+let currentRecord = null;
+let mutationVersion = 0;
+let reloadRequested = false;
+const recordEditor = mountRecordEditor($('#recordEditor'), {
+  getCategories: () => categories,
+  onAccessChange(enabled) {
+    $('#createRecord').hidden = !enabled;
+    $('#recordActions').hidden = !enabled || !currentRecord || currentRecord.revision == null;
+  },
+  onClose: () => route(),
+  async onReload(id) {
+    const payload = await api('./api/records');
+    if (payload.mode !== 'personal' || !Array.isArray(payload.records)) throw new Error('暂时无法读取最新记录，草稿仍保留。');
+    return payload.records.find(record => record.id === id) || null;
+  },
+  onSuccess(result, action) {
+    mutationVersion++;
+    payloadSignature = '';
+    if (result.deleted) {
+      records = records.filter(record => record.id !== result.deleted);
+      history.replaceState(null, '', `#${category}`);
+    } else {
+      records = [...records.filter(record => record.id !== result.record.id), result.record];
+      clearFilters();
+      history.replaceState(null, '', `#${result.record.category}/${encodeURIComponent(result.record.id)}`);
+    }
+    $('#recordNotice').textContent = action === 'delete' ? '记忆及其历史版本已删除；磁盘附件和此前的备份已保留。' : result.record.index_status === 'pending' ? '记忆已保存，索引仍在处理中。' : '记忆已保存。';
+    $('#recordNotice').hidden = false;
+    route();
+    void load();
+  }
+});
 const categoryManager = mountCategories($('#categoryManager'), {onChange(items) {
   categories = categoryMap(items, records);
   if (category !== 'overview' && !Object.hasOwn(categories, category)) history.replaceState(null, '', '#overview');
@@ -67,6 +99,8 @@ function render() {
 }
 function fieldValue(value) { return typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? ''); }
 function openRecord(record) {
+  currentRecord = record;
+  $('#recordActions').hidden = !recordEditor.enabled || record.revision == null;
   $('#detailKind').textContent = categories[record.category]?.label || record.category;
   const fields = Object.entries(record.fields || {}).map(([key, value]) => `<div><dt>${esc(key)}</dt><dd>${esc(fieldValue(value))}</dd></div>`).join('');
   const steps = record.steps?.length ? `<h3 class="detail-section-title">进展清单</h3><ul class="steps">${record.steps.map(step => `<li class="${step.done ? 'done' : ''}"><span aria-hidden="true">${step.done ? '✓' : '○'}</span><span>${esc(step.text)}</span><span class="step-status">${step.done ? '已完成' : '待推进'}</span></li>`).join('')}</ul>` : '';
@@ -81,12 +115,16 @@ function route() {
   if (requestedCategory === 'backup') history.replaceState(null, '', '#overview');
   category = Object.hasOwn(categories, requestedCategory) ? requestedCategory : 'overview';
   render();
+  // An open editor owns its draft and the revision captured when it was opened.
+  // Background refreshes may replace the list, but must not replace that snapshot.
+  if (recordEditor.open) return;
   if (encodedId && ready) {
     let id;
     try { id = decodeURIComponent(encodedId); } catch { id = ''; }
     const record = records.find(item => item.id === id);
     if (record) { openRecord(record); return; }
   }
+  currentRecord = null;
   if ($('#detail').open) { $('#detail').close(); restoreFocus(); }
 }
 function restoreFocus() {
@@ -108,13 +146,21 @@ async function api(path) {
   return response.json();
 }
 async function load() {
-  if (loading) return;
+  if (loading) { reloadRequested = true; return; }
+  const version = mutationVersion;
   loading = true; $('#refresh').disabled = true; $('#content').setAttribute('aria-busy', 'true');
   try {
-    const [payload, status] = await Promise.all([api('./api/records'), nativeStatus ? Promise.resolve(nativeStatus) : api('./api/dashboard')]);
-    if (payload.mode !== 'personal' || !Array.isArray(payload.records) || !status.database_ok || !status.read_only) throw new Error('个人数据库尚未就绪。');
-    nativeStatus = status;
-    $('#manageCategories').hidden = status.category_management === false;
+    const [payload, status] = await Promise.all([api('./api/records'), api('./api/dashboard')]);
+    if (version !== mutationVersion) return;
+    if (payload.mode !== 'personal' || !Array.isArray(payload.records) || !status.database_ok || !(status.read_only === true || status.record_management === true)) throw new Error('个人数据库尚未就绪。');
+    $('#manageCategories').hidden = status.category_management !== true;
+    let editorAccess = {enabled:false};
+    if (status.record_management === true) {
+      try { editorAccess = await api('./api/editor'); }
+      catch { $('#recordNotice').textContent = '记录已读取，编辑连接暂不可用。点击刷新重试。'; $('#recordNotice').hidden = false; }
+    }
+    if (version !== mutationVersion) return;
+    recordEditor.setAccess(editorAccess);
     archiveError = false;
     $('#connectionStatus').textContent = '已连接';
     $('#connectionStatus').title = payload.pending_index ? `${payload.pending_index} 条记录等待完成索引` : '记忆已连接';
@@ -125,7 +171,9 @@ async function load() {
       records = payload.records; categories = categoryMap(payload.categories, records); payloadSignature = signature; ready = true; route();
     }
   } catch (error) {
-    nativeStatus = null;
+    if (version !== mutationVersion) return;
+    recordEditor.setAccess({enabled:false});
+    $('#manageCategories').hidden = true;
     archiveError = true;
     $('#connectionStatus').textContent = '连接失败';
     $('#bootError').hidden = false;
@@ -133,6 +181,7 @@ async function load() {
     if (!ready) { $('#overviewContent').innerHTML = ''; }
   } finally {
     loading = false; $('#refresh').disabled = false; $('#content').setAttribute('aria-busy', 'false');
+    if (reloadRequested) { reloadRequested = false; void load(); }
   }
 }
 document.addEventListener('click', event => {
@@ -165,6 +214,9 @@ $('#toDate').addEventListener('change', render);
 $('#clearFilters').addEventListener('click', clearFilters);
 $('#refresh').addEventListener('click', load);
 $('#manageCategories').addEventListener('click', () => { void categoryManager.open(); });
+$('#createRecord').addEventListener('click', () => recordEditor.openRecord(null, {category:category === 'overview' ? '' : category}));
+$('#editRecord').addEventListener('click', () => { if (currentRecord) recordEditor.openRecord(currentRecord); });
+$('#deleteRecord').addEventListener('click', () => { if (currentRecord) recordEditor.openRecord(currentRecord, {deleting:true}); });
 $('#mobileMenuToggle').addEventListener('click', () => {
   const open = $('.sidebar').classList.toggle('mobile-menu-open');
   $('#mobileMenuToggle').setAttribute('aria-expanded',String(open));

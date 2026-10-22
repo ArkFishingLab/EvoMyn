@@ -19,7 +19,7 @@ import zipfile
 
 
 PACKAGE = 'evomyn-mcp'
-VERSION = '0.2.9'
+VERSION = '0.2.10'
 BASE = 'server/personal-memory'
 VENDOR_FILES = (
     'archive_store.py', 'archive_categories.py', 'backup_bundle.py', 'backup_github.py', 'backup_manager.py',
@@ -29,7 +29,7 @@ VENDOR_FILES = (
     'planner_store.py', 'planner_tools.py', 'restore_backup.py', 'runtime.py',
 )
 PC_TESTS = (
-    'test_archive_categories.py', 'test_backup_bundle.py', 'test_backup_github.py', 'test_backup_manager.py',
+    'test_archive_editing.py', 'test_archive_categories.py', 'test_backup_bundle.py', 'test_backup_github.py', 'test_backup_manager.py',
     'test_backup_server.py', 'test_backup_wal.py', 'test_bridge.py',
     'test_device_archive.py', 'test_device_archive_dashboard.py',
     'test_device_archive_gateway.py', 'test_device_owner.py', 'test_device_updates.py',
@@ -40,7 +40,7 @@ PC_TESTS = (
 )
 VIEWER_STATIC = (
     'style.css', 'personal.mjs', 'personal-shared.mjs', 'personal-native.css',
-    'personal-model.mjs', 'favicon.svg', 'backup.mjs', 'backup.css', 'categories.mjs', 'categories.css',
+    'personal-model.mjs', 'favicon.svg', 'backup.mjs', 'backup.css', 'categories.mjs', 'categories.css', 'record-editor.mjs', 'record-editor.css', 'editor-model.mjs',
 )
 FIRMWARE_SUPPORT_FILES = (
     'tools/export_round_sources.py', 'tools/public_round_files.json',
@@ -57,7 +57,7 @@ PUBLIC_FILES = {
     **{f'{BASE}/viewer/{name}': f'viewer/{name}'
        for name in ('index.html', 'server.py', 'LICENSE', 'SOURCE.json')},
     **{f'{BASE}/viewer/tests/{name}': f'viewer/tests/{name}'
-       for name in ('backup.test.mjs', 'model.test.mjs', 'test_server.py')},
+       for name in ('backup.test.mjs', 'model.test.mjs', 'editor.test.mjs', 'test_server.py', 'test_record_editor.py')},
     **{f'{BASE}/local/{name}': name for name in (
         'launcher.py', 'dashboard.py', 'bootstrap.ps1', 'manage.ps1',
         'Start.cmd', 'Stop.cmd', 'Configure.cmd', 'onboarding.py',

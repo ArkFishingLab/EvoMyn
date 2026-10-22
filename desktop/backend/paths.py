@@ -15,7 +15,7 @@ FILES = (tuple('app/' + name for name in VENDOR) + ('dashboard.py', 'onboarding.
     tuple('app/' + directory + '/' + name for directory in ('mcp_admin_web', 'planner_web')
         for name in ('index.html', 'style.css', 'app.js')) +
     tuple('viewer/static/' + name for name in ('style.css', 'personal.mjs', 'personal-shared.mjs',
-        'personal-native.css', 'personal-model.mjs', 'favicon.svg', 'backup.mjs', 'backup.css', 'brand-fonts.css', 'categories.mjs', 'categories.css')))
+        'personal-native.css', 'personal-model.mjs', 'favicon.svg', 'backup.mjs', 'backup.css', 'brand-fonts.css', 'categories.mjs', 'categories.css', 'record-editor.mjs', 'record-editor.css', 'editor-model.mjs')))
 
 
 def reject_links(path):

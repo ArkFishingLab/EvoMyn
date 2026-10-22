@@ -79,7 +79,7 @@ function Get-SourceRuntimeFiles {
         $files["$base/viewer/$name"]="viewer/$name"
     }
     foreach ($name in @('style.css','personal.mjs','personal-shared.mjs','personal-native.css',
-                        'personal-model.mjs','favicon.svg','backup.mjs','backup.css','categories.mjs','categories.css')) {
+                        'personal-model.mjs','favicon.svg','backup.mjs','backup.css','categories.mjs','categories.css','record-editor.mjs','record-editor.css','editor-model.mjs')) {
         $files["$base/viewer/static/$name"]="viewer/static/$name"
     }
     $files["$base/distribution/public-fonts.css"]='viewer/static/brand-fonts.css'

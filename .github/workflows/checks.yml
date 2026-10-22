@@ -38,7 +38,7 @@ jobs:
       - name: Viewer fixtures
         run: python -m unittest discover -s server/personal-memory/viewer/tests -p "test_*.py" -v
       - name: Planner and viewer JavaScript tests
-        run: node --test server/personal-memory/tests/test_planner_web.cjs server/personal-memory/viewer/tests/model.test.mjs server/personal-memory/viewer/tests/backup.test.mjs
+        run: node --test server/personal-memory/tests/test_planner_web.cjs server/personal-memory/viewer/tests/*.test.mjs
       - name: Round screen preview tests
         run: node --test tests/preview-settings.test.mjs tests/round-layout.test.mjs
       - name: Desktop shell security, lifecycle and signed updater

@@ -66,6 +66,12 @@ class DeviceArchive:
         store = self.store
 
         def persisted():
+            deleted = store.tombstone(record_id)
+            if deleted:
+                if deleted['event_digest'] != digest:
+                    raise EventConflict('Event identifier already has different content')
+                return {'ok': True, 'event_id': event['event_id'], 'record_id': record_id,
+                        'index_status': 'deleted'}
             try:
                 record = store.get(record_id)
             except KeyError:
@@ -98,7 +104,7 @@ class DeviceArchive:
                       'date': datetime.fromtimestamp(event['completed_at'], CHINA).date().isoformat(),
                       'tags': ['device-completion'], 'links': []}
             try:
-                store.save(record, expected_revision=0)
+                store.save(record, expected_revision=0, index=False)
             except Exception:
                 # save may commit the original then lose its indexing/response.
                 # Acknowledge only if a fresh read proves the record is durable.
@@ -109,4 +115,9 @@ class DeviceArchive:
             result = persisted()
             if result is None:
                 raise OSError('Archive save did not persist the completion')
-            return result
+        # Never wait for the model/index lock while holding the archive lock:
+        # a background editor job may need that lock to finish its revision check.
+        try: store._index(record_id)
+        except Exception: pass  # The durable original is enough to acknowledge.
+        with store.lock:
+            return persisted() or result

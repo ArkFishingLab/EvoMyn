@@ -191,7 +191,7 @@ def main():
     servers = []
     started = []
     try:
-        servers.append(viewer.create_server(store.db_path, host='127.0.0.1', port=ports[1]))
+        servers.append(viewer.create_server(store.db_path, host='127.0.0.1', port=ports[1], record_store=store))
         _, planner, device_server = build_planner_services(PLANNER_OWNER)
         servers.extend(server for server in (planner, device_server) if server is not None)
         servers.append(create_admin_server(controller, port=ports[2]))

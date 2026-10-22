@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./static/style.css">
   <link rel="stylesheet" href="./static/personal-native.css">
   <link rel="stylesheet" href="./static/categories.css">
+  <link rel="stylesheet" href="./static/record-editor.css">
 </head>
 <body>
 <a class="skip-link" href="#content">跳到内容</a>
@@ -26,30 +27,51 @@
       </nav>
       <div class="menu-search"><input id="searchQuery" type="search" aria-label="搜索记录" placeholder="搜索你的记忆" autocomplete="off"><span aria-hidden="true">⌕</span></div>
       <nav id="categoryNav" aria-label="记忆分类"></nav>
-      <button id="manageCategories" type="button" aria-haspopup="dialog">管理分类 <span aria-hidden="true">↗</span></button>
+      <button id="manageCategories" type="button" aria-haspopup="dialog" hidden>管理分类 <span aria-hidden="true">↗</span></button>
     </div>
   </aside>
   <div class="workspace">
     <header class="hero">
       <div class="title-line"><h1 id="pageTitle">记忆</h1><span id="recordTotal" class="total-count"></span><p id="pageDescription" hidden></p></div>
-      <div class="hero-side"><span id="today" class="date-label"></span><div class="archive-status"><span id="connectionStatus" role="status">连接中</span><button id="refresh" aria-label="刷新记录" title="刷新">↻</button></div></div>
+      <div class="hero-side"><button id="createRecord" class="record-create" type="button" aria-haspopup="dialog" hidden><span aria-hidden="true">＋</span> 新增记忆</button><span id="today" class="date-label"></span><div class="archive-status"><span id="connectionStatus" role="status">连接中</span><button id="refresh" aria-label="刷新记录" title="刷新">↻</button></div></div>
     </header>
     <main id="content" tabindex="-1">
       <section class="toolbar" aria-label="筛选记录"><div class="date-range"><label>从<input id="fromDate" type="date" aria-label="发生日期开始"></label><span>—</span><label>到<input id="toDate" type="date" aria-label="发生日期结束"></label></div><button id="clearFilters" class="quiet-button" hidden>清除筛选</button></section>
       <p id="filterStatus" class="muted filter-status" role="status"></p>
+      <p id="recordNotice" class="record-notice" role="status" hidden></p>
       <section id="overview" class="tab active"><div id="overviewContent"></div></section>
       <section id="records" class="tab"><div class="section-head"><h2 id="listTitle">全部记录</h2><span id="resultCount"></span></div><div id="recordList" class="list memory-grid"></div></section>
       <div id="bootError" class="state-card state-error" role="alert" hidden></div>
     </main>
   </div>
 </div>
-<dialog id="detail" class="drawer" aria-labelledby="detailTitle"><button id="closeDetail" aria-label="关闭详情">×</button><div class="drawer-kicker" id="detailKind"></div><h2 id="detailTitle" class="drawer-title">详情</h2><div id="detailBody" class="html-detail"></div></dialog>
+<dialog id="detail" class="drawer" aria-labelledby="detailTitle"><button id="closeDetail" aria-label="关闭详情">×</button><div class="drawer-kicker" id="detailKind"></div><h2 id="detailTitle" class="drawer-title">详情</h2><div id="recordActions" class="record-actions" hidden><button id="editRecord" type="button" aria-haspopup="dialog">编辑记忆</button><button id="deleteRecord" class="record-danger" type="button" aria-haspopup="dialog">删除</button></div><div id="detailBody" class="html-detail"></div></dialog>
 <dialog id="categoryManager" class="category-dialog" aria-labelledby="categoryManagerTitle">
   <header><h2 id="categoryManagerTitle">管理分类</h2><button type="button" data-category-close aria-label="关闭分类管理">×</button></header>
-  <p>按你的习惯命名和排序。已有记忆会保留在原分类。</p>
+  <p>所有分类都可以改名、调整顺序，包括默认分类。默认分类不能删除；已有记忆会保留在原分类。</p>
   <div data-category-list></div>
   <form data-category-add><input name="label" placeholder="新分类名称" aria-label="新分类名称" maxlength="24" required autocomplete="off"><button type="submit">新增分类</button></form>
   <p data-category-status role="alert" hidden></p>
+</dialog>
+<dialog id="recordEditor" class="record-editor" aria-labelledby="recordEditorTitle">
+  <header><div><p class="editor-kicker">你的记忆</p><h2 id="recordEditorTitle">新增记忆</h2></div><button type="button" data-editor-close aria-label="关闭记忆编辑">×</button></header>
+  <form data-editor-form novalidate>
+    <fieldset data-editor-fields>
+      <label>分类<select name="category" aria-describedby="editorCategoryHelp" required></select></label>
+      <p id="editorCategoryHelp" class="editor-help">可在「管理分类」中修改分类名称和顺序。</p>
+      <label>标题 <span class="editor-required">必填</span><input name="title" required autocomplete="off" placeholder="给这段记忆一个标题"></label>
+      <label>记忆内容 <span class="editor-required">必填</span><textarea name="body" required rows="7" placeholder="写下想记住的人、经历或资料……"></textarea></label>
+      <div class="editor-dates"><label>开始日期<input name="date" type="text" aria-describedby="editorDateHelp" placeholder="如 2024-02" autocomplete="off"></label><label>结束日期<input name="date_end" type="text" aria-describedby="editorDateHelp" placeholder="留空，或 ongoing" autocomplete="off"></label></div>
+      <p id="editorDateHelp" class="editor-help">日期可选，支持 YYYY、YYYY-MM、YYYY-MM-DD。持续至今在结束日期填写 ongoing。</p>
+      <label>标签<textarea name="tags" rows="2" aria-describedby="editorTagsHelp" placeholder="每行一个标签"></textarea></label>
+      <p id="editorTagsHelp" class="editor-help">每行一个标签。已有附件、关联记录和进展清单会保留。</p>
+    </fieldset>
+    <section data-editor-deletion hidden><p>确定删除「<strong data-editor-delete-title></strong>」？</p><p class="editor-help">这条记忆及其历史版本将被删除。磁盘附件和此前的备份会保留。</p></section>
+    <p data-editor-error class="editor-error" role="alert" hidden></p>
+    <button type="button" data-editor-reload class="editor-reload" hidden>重新载入最新记录</button>
+    <section data-editor-confirm class="editor-confirm" role="group" aria-label="确认放弃草稿" hidden><p data-editor-confirm-message></p><div><button type="button" data-editor-keep>继续编辑</button><button type="button" data-editor-discard>放弃草稿</button></div></section>
+    <footer><button type="button" data-editor-cancel>取消</button><button type="submit" data-editor-submit class="editor-primary">保存记忆</button></footer>
+  </form>
 </dialog>
 <noscript>请启用 JavaScript 以浏览个人记录。</noscript>
 <script type="module" src="./static/personal.mjs"></script>

@@ -198,6 +198,38 @@ class DesktopBackend(unittest.TestCase):
         self.command('stop-mcp')
         self.assertTrue(any(x['label'] == 'MCP关闭也可管理' for x in category({'action':'create','label':'MCP关闭也可管理'})))
 
+    def test_dashboard_memory_crud_is_shared_with_mcp_and_works_with_master_off(self):
+        from urllib.parse import urlsplit
+        base = self.command('status')['dashboard_url']
+        origin = '{0.scheme}://{0.netloc}'.format(urlsplit(base))
+        with urlopen(base + 'api/editor') as response:
+            editor = json.load(response)
+        self.assertTrue(editor['enabled'])
+        def write(value):
+            with urlopen(Request(base + 'api/records', data=json.dumps(value).encode(), headers={
+                    'Content-Type':'application/json', 'X-CSRF-Token':editor['csrf'], 'Origin':origin})) as response:
+                return json.load(response)
+        self.command('stop-mcp')
+        record = write({'action':'create', 'record':{'category':'journal', 'title':'隔离桌面记录',
+                       'body':'Temporary CRUD acceptance.', 'date':'2026-10', 'tags':['test']}})['record']
+        self.assertEqual(record['revision'], 1)
+        updated = write({'action':'update', 'id':record['id'], 'revision':1,
+                         'changes':{'body':'Edited from desktop.'}})['record']
+        self.assertEqual(updated['revision'], 2)
+        self.command('start-mcp')
+        current = self.private_tool_call('archive_get', {'record_id':record['id']})['structuredContent']
+        self.assertEqual(current['body'], 'Edited from desktop.')
+        with self.assertRaises(HTTPError) as error:
+            write({'action':'delete', 'id':record['id'], 'revision':1})
+        self.assertEqual(error.exception.code, 409)
+        self.command('stop-mcp')
+        self.assertEqual(write({'action':'delete','id':record['id'],'revision':2})['deleted'], record['id'])
+        with urlopen(base + 'api/records') as response:
+            self.assertEqual(json.load(response)['records'], [])
+        self.command('start-mcp')
+        remaining = self.private_tool_call('archive_list', {})
+        self.assertNotIn(record['id'], json.dumps(remaining))
+
     def test_runtime_refresh_preserves_preferences_models_configuration_and_database(self):
         self.command('status')
         self.command('stop-mcp')

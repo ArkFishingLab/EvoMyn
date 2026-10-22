@@ -26,7 +26,7 @@ python -m venv .venv
 python -X utf8 -m unittest discover -s server/personal-memory/tests -p "test_*.py"
 python -X utf8 -m unittest discover -s server/personal-memory/viewer/tests -p "test_*.py"
 node --test server/personal-memory/tests/test_planner_web.cjs
-node --test server/personal-memory/viewer/tests/backup.test.mjs server/personal-memory/viewer/tests/model.test.mjs
+node --test server/personal-memory/viewer/tests/*.test.mjs
 node --test tests/preview-settings.test.mjs tests/round-layout.test.mjs
 python -X utf8 -m unittest discover -s tests -p "test_*.py"
 ```

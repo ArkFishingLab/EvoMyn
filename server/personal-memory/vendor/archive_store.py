@@ -16,6 +16,10 @@ from archive_categories import CategoryCatalog, DEFAULT_CATEGORIES
 CATEGORIES = {key: value[0] for key, value in DEFAULT_CATEGORIES.items()}
 CHINA = timezone(timedelta(hours=8))
 
+class ArchiveConflict(ValueError):
+    """The caller's record snapshot is no longer current."""
+    status_code = 409
+
 def now():
     return datetime.now(CHINA).isoformat(timespec='seconds')
 
@@ -50,6 +54,7 @@ class ArchiveStore:
         self.db_path = self.root / 'data' / 'mnemosyne.db'
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = FileLock(str(self.db_path.parent / 'archive.lock'), timeout=60)
+        self.index_lock = FileLock(str(self.db_path.parent / 'archive-index.lock'), timeout=60)
         self.mem = Mnemosyne(db_path=self.db_path, session_id='personal-archive', author_type='human')
         with self.connection() as conn:
             conn.executescript('''
@@ -64,6 +69,9 @@ class ArchiveStore:
                 CREATE TABLE IF NOT EXISTS personal_archive_history (
                     record_id TEXT NOT NULL, revision INTEGER NOT NULL, payload TEXT NOT NULL,
                     changed_at TEXT NOT NULL, PRIMARY KEY(record_id, revision)
+                );
+                CREATE TABLE IF NOT EXISTS personal_archive_tombstones (
+                    id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL, event_digest TEXT
                 );
             ''')
         self.categories = CategoryCatalog(self.db_path)
@@ -120,13 +128,15 @@ class ArchiveStore:
             if parsed.scheme not in ('http', 'https') or not parsed.netloc: raise ValueError('资料链接需要 HTTP(S) 地址，或使用 file_path 登记本地文件。')
         return record
 
-    def save(self, value, expected_revision=None):
+    def save(self, value, expected_revision=None, *, index=True):
         with self.lock:
             record = self.normalize(value)
             stamp = now()
             with self.connection() as conn:
+                if conn.execute('SELECT 1 FROM personal_archive_tombstones WHERE id=?', (record['id'],)).fetchone():
+                    raise ArchiveConflict('记录已被删除，请刷新后重试。')
                 previous = conn.execute('SELECT * FROM personal_archive_records WHERE id=?', (record['id'],)).fetchone()
-                if expected_revision is not None and (previous['revision'] if previous else 0) != expected_revision: raise ValueError('记录已被更新，请重新读取后再修改。')
+                if expected_revision is not None and (previous['revision'] if previous else 0) != expected_revision: raise ArchiveConflict('记录已被更新，请重新读取后再修改。')
                 if previous and previous['category'] != record['category']: raise ValueError('修改时不能更换记录类别。')
                 revision = previous['revision'] + 1 if previous else 1
                 record['created_at'] = json.loads(previous['payload'])['created_at'] if previous else stamp
@@ -138,11 +148,34 @@ class ArchiveStore:
                     occurrence_date=excluded.occurrence_date,revision=excluded.revision,updated_at=excluded.updated_at''',
                     (record['id'], record['category'], record['date'], payload, revision, stamp))
                 conn.execute('INSERT INTO personal_archive_history VALUES (?,?,?,?)', (record['id'], revision, payload, stamp))
+            result = self.get(record['id'])
+        if index:
             self._index(record['id'])
             return self.get(record['id'])
+        return result
 
     def _index(self, record_id):
-        record = self.get(record_id)
+        # The expensive model call does not hold the archive write lock. A
+        # revision check below prevents a completed old job indexing newer text.
+        with self.index_lock:
+            self._index_current(record_id)
+
+    def _invalidate(self, memory_id, replacement_id=None):
+        if not memory_id: return
+        try:
+            # Mnemosyne owns shared SQLite connections. Do not race its worker
+            # or make deletion wait for a slow embedding/model download.
+            with self.index_lock.acquire(timeout=0):
+                if replacement_id: self.mem.invalidate(memory_id, replacement_id=replacement_id)
+                else: self.mem.invalidate(memory_id)
+        except Exception:
+            # Archive search only exposes current, indexed, active records.
+            # Native invalidation is best effort; it is not secure erasure.
+            pass
+
+    def _index_current(self, record_id):
+        try: record = self.get(record_id)
+        except KeyError: return
         old_memory_id = record.get('memory_id')
         text = '\n'.join([
             f"记录编号：{record['id']}；版本：{record['revision']}",
@@ -156,19 +189,21 @@ class ArchiveStore:
             memory_id = self.mem.remember(text, source='personal-archive', scope='global', importance=0.8,
                 metadata={'archive_id': record_id, 'topic': record['category'], 'revision': record['revision']}, veracity='stated')
             if not memory_id: raise ValueError('Mnemosyne 拒绝索引此记录；原始记录已保留。')
-            with self.connection() as conn:
-                conn.execute('UPDATE personal_archive_records SET memory_id=?,index_revision=revision,index_error=NULL WHERE id=?', (memory_id, record_id))
+            with self.lock, self.connection() as conn:
+                changed = conn.execute('UPDATE personal_archive_records SET memory_id=?,index_revision=?,index_error=NULL WHERE id=? AND revision=?', (memory_id, record['revision'], record_id, record['revision'])).rowcount
+            if not changed:
+                self._invalidate(memory_id)
+                return
             if old_memory_id and old_memory_id != memory_id:
-                self.mem.invalidate(old_memory_id, replacement_id=memory_id)
+                self._invalidate(old_memory_id, replacement_id=memory_id)
         except Exception as error:
-            with self.connection() as conn:
-                conn.execute('UPDATE personal_archive_records SET index_error=? WHERE id=?', (str(error)[:500], record_id))
+            with self.lock, self.connection() as conn:
+                conn.execute('UPDATE personal_archive_records SET index_error=? WHERE id=? AND revision=?', (str(error)[:500], record_id, record['revision']))
 
     def retry_index(self):
-        with self.lock:
-            with self.connection(readonly=True) as conn:
-                ids = [row['id'] for row in conn.execute('SELECT id FROM personal_archive_records WHERE index_revision<revision OR index_error IS NOT NULL')]
-            for record_id in ids: self._index(record_id)
+        with self.connection(readonly=True) as conn:
+            ids = [row['id'] for row in conn.execute('SELECT id FROM personal_archive_records WHERE index_revision<revision OR index_error IS NOT NULL')]
+        for record_id in ids: self._index(record_id)
         return self.status()
 
     def get(self, record_id):
@@ -195,7 +230,10 @@ class ArchiveStore:
         if from_date and to_date and from_date > to_date: raise ValueError('开始日期晚于结束日期。')
         sql = 'SELECT id FROM personal_archive_records' + (' WHERE ' + ' AND '.join(where) if where else '') + ' ORDER BY occurrence_date DESC,id'
         with self.connection(readonly=True) as conn: ids = [row['id'] for row in conn.execute(sql, params)]
-        records = [self.get(record_id) for record_id in ids]
+        records = []
+        for record_id in ids:
+            try: records.append(self.get(record_id))
+            except KeyError: pass  # A concurrent deletion is absent from this view.
         if from_date or to_date:
             records = [record for record in records if (bounds := period_bounds(record)) and
                        (not from_date or bounds[1] >= from_date) and (not to_date or bounds[0] <= to_date)]
@@ -207,10 +245,42 @@ class ArchiveStore:
             records = [record for record in records if term in '\n'.join([record['title'], record['body'], *map(str, record['fields'].values()), *record['tags']]).lower()]
         return records
 
-    def update(self, record_id, changes, expected_revision=None):
+    def update(self, record_id, changes, expected_revision=None, *, index=True):
         record = self.get(record_id)
         if not isinstance(changes, dict) or any(key in changes for key in ('id', 'category', 'created_at', 'revision', 'memory_id')): raise ValueError('修改字段不正确。')
-        return self.save({**record, **changes}, expected_revision=record['revision'] if expected_revision is None else expected_revision)
+        return self.save({**record, **changes}, expected_revision=record['revision'] if expected_revision is None else expected_revision, index=index)
+
+    def tombstone(self, record_id):
+        with self.connection(readonly=True) as conn:
+            row = conn.execute('SELECT id,deleted_at,event_digest FROM personal_archive_tombstones WHERE id=?', (record_id,)).fetchone()
+        return dict(row) if row else None
+
+    def delete(self, record_id, expected_revision):
+        """Remove active content/history; retain only a replay-prevention marker."""
+        updated = []
+        with self.lock, self.connection() as conn:
+            row = conn.execute('SELECT * FROM personal_archive_records WHERE id=?', (record_id,)).fetchone()
+            if not row or row['revision'] != expected_revision:
+                raise ArchiveConflict('记录已被更新或删除，请刷新后重试。')
+            original = conn.execute('SELECT payload FROM personal_archive_history WHERE record_id=? AND revision=1', (record_id,)).fetchone()
+            digest = json.loads(original['payload']).get('fields', {}).get('event_payload_sha256') if original else None
+            if not record_id.startswith('device-journal-') or not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest): digest = None
+            stamp = now()
+            conn.execute('INSERT INTO personal_archive_tombstones VALUES (?,?,?)', (record_id, stamp, digest))
+            conn.execute('DELETE FROM personal_archive_history WHERE record_id=?', (record_id,))
+            conn.execute('DELETE FROM personal_archive_records WHERE id=?', (record_id,))
+            for linked in conn.execute('SELECT id,payload,revision FROM personal_archive_records').fetchall():
+                value = json.loads(linked['payload'])
+                if record_id not in value.get('links', []): continue
+                value['links'] = [item for item in value['links'] if item != record_id]
+                value['revision'] = linked['revision'] + 1
+                value['updated_at'] = stamp
+                payload = json.dumps(value, ensure_ascii=False)
+                conn.execute('UPDATE personal_archive_records SET payload=?,revision=?,updated_at=? WHERE id=?', (payload, value['revision'], stamp, linked['id']))
+                conn.execute('INSERT INTO personal_archive_history VALUES (?,?,?,?)', (linked['id'], value['revision'], payload, stamp))
+                updated.append(linked['id'])
+        self._invalidate(row['memory_id'])
+        return {'deleted': record_id, 'updated_links': updated}
 
     def history(self, record_id):
         with self.connection(readonly=True) as conn:

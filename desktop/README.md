@@ -1,11 +1,11 @@
 # EvoMyn · Windows 桌面应用
 
-安装 `EvoMyn-Setup-0.2.9-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
+安装 `EvoMyn-Setup-0.2.10-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
 
 ## 使用
 
-- **记忆**：本机看板；**能力**：按功能包管理 MCP；**客户端接入**：导出本机客户端配置、按需连接小智；**应用设置**：桌面偏好、本地数据及更新。
-- **MCP 开关**：位于左侧导航底部，控制应用拥有的执行进程。关闭后，已连接的客户端也不能继续调用工具，看板仍可访问。
+- **记忆**：浏览、搜索、新增、编辑和删除本机记忆，默认分类也可改名和排序；**能力**：按功能包管理 MCP；**客户端接入**：导出本机客户端配置、按需连接小智；**应用设置**：桌面偏好、本地数据及更新。
+- **MCP 开关**：位于左侧导航底部，控制应用拥有的执行进程。关闭后，已连接的客户端也不能继续调用工具，看板仍可浏览和编辑记忆。
 - **能力列表与商城**：展示 PC 提供或可安装的 MCP 功能；圆盘自带的计划提醒不列入其中，仍在圆盘上使用。
 - **小智云端连接**：单独控制云连接；同时需要 MCP 总开关开启。Codex、Claude 使用本机 stdio 转发，不需要云端连接。
 - MCP 无需绑定小智即可使用。开启“小智连接”时才检查接入点，缺少时打开引导，说明控制台获取步骤；保存后连接，实际连通才显示已连接。取消或输错不会停止本地 MCP。暂停小智也会保留本地服务。
@@ -50,7 +50,7 @@ npm test
 npm run dist
 ```
 
-输出：`desktop/dist/EvoMyn-Setup-0.2.9-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
+输出：`desktop/dist/EvoMyn-Setup-0.2.10-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
 
 ## 发布更新
 
@@ -58,10 +58,10 @@ npm run dist
 
 ```powershell
 # desktop/ 内；使用当前已备份的发布密钥签名
-node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.9-x64.exe --version 0.2.9 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.9/EvoMyn-Setup-0.2.9-x64.exe --output dist/latest.json
-gh release create v0.2.9 dist/EvoMyn-Setup-0.2.9-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.9" --notes "内置 GitHub 更新源，支持自定义记忆分类。" --draft
+node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.10-x64.exe --version 0.2.10 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.10/EvoMyn-Setup-0.2.10-x64.exe --output dist/latest.json
+gh release create v0.2.10 dist/EvoMyn-Setup-0.2.10-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.10" --notes "支持桌面记忆增删改，迁移至 ArkFishingLab 官方更新源。" --draft
 # 确认附件齐全后发布
-gh release edit v0.2.9 --repo ArkFishingLab/EvoMyn --draft=false --latest
+gh release edit v0.2.10 --repo ArkFishingLab/EvoMyn --draft=false --latest
 ```
 
 后续发布应同时更新版本号、版本标签、安装包名称和签名说明中的版本专属下载地址。每个正式 Release 均附同名 `latest.json`，固定的 `/releases/latest/download/latest.json` 会指向最新正式版本。先创建草稿并上传全部文件，检查后再发布，避免用户读取不完整版本。省略 `--url` 仍可生成离线说明。
