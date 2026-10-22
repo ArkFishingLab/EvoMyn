@@ -26,4 +26,8 @@ Windows 0.2.7 内置官方源 `https://github.com/clover-Saber/EvoMyn/releases/l
 
 0.2.8 本机定向回归：公开导出 16 项（1 项环境跳过，其余通过）、Windows 启动器 16 项及 TLS 桥接 1 项通过。打包版旧空地址夹具验收通过，正常启动、内置更新源、MCP、分类、导航、小智 TLS 和退出检查均通过。运行环境的 46 个应用文件与当前权威源码逐字节一致。Windows x64 安装包大小为 179726635 字节，SHA-256 为 `26ff59a21da96cc4f7286712893d445183e54c7f86b2c2f6bb21ba6e61d6949d`；在线和离线更新说明均已用原信任密钥签名。
 
+最终公开版本为 [v0.2.8](https://github.com/clover-Saber/EvoMyn/releases/tag/v0.2.8)。通过真实 Electron 更新器，从固定 `latest.json` 发现 0.2.8 并下载完整 179726635 字节安装包；原公钥签名、平台、版本、大小和 SHA-256 校验通过，状态到达 ready。未执行正式应用安装。打包 ASAR 的默认源、代理传输模块、主进程、公钥及后端脚本均与维护源码逐字节一致，Windows 产品版本为 0.2.8.0。
+
+云端检查还发现两个 PC 夹具把相同目录的短、长路径字符串视为不同位置；仅规范化夹具的预期路径，全部隔离断言保留。本机相关归档 11 项和便携启动 21 项通过。最终源提交的完整云端状态见 [Repository checks](https://github.com/clover-Saber/EvoMyn/actions/runs/39731483501)。源码推送至 main，发布附件与签名说明公开；个人配置和签名私钥没有上传。
+
 以 GitHub Release 的安装包与签名更新说明为更新载荷，源码不需要独立中转服务器。完整开源范围包括 PC MCP、看板、Windows 桌面源码及可选圆盘固件。固件未修改或烧录，Windows 安装程序仍未进行发布者证书签名。

@@ -12,7 +12,7 @@
 - [x] Add failing tests for default, legacy empty, invalid saved and valid custom update feeds in `desktop/tests/update-source.test.cjs`; implement `desktop/update-source.cjs`, wire `desktop/main.cjs` and the builder file list. Saving an empty feed restores the embedded default.
 - [x] Verify the actual desktop shell exposes the built-in feed with an enabled update check. Update active docs and release versions to 0.2.7. Preserve application identity, data directory and update trust.
 - [x] Run Node suites, targeted Python packaging/backend checks and real packaged Electron acceptance against isolated data. Build the Windows installer and sign the public GitHub download URL in `latest.json`.
-- [ ] Audit every source candidate and staged file; create the initial source commit and push to the supplied repository's default branch. Publish GitHub Release v0.2.7 with the verified installer and signed latest.json, plus source/checksum assets.
-- [ ] Fetch the public fixed feed through the real updater, verify its signature and installer bytes, and inspect GitHub checks. Report the repository, release and initial setup path for older installations.
+- [x] Audit every source candidate and staged file; create the initial source commit and push to the supplied repository's default branch. Publish GitHub Release v0.2.7 and the system-proxy follow-up v0.2.8 with verified installers and signed latest.json, plus source/checksum assets.
+- [x] Fetch the public fixed feed through the real updater, verify its signature and installer bytes, and inspect GitHub checks. Report the repository, release and initial setup path for older installations.
 
 The user explicitly authorized pushing this repository and embedding the update source. Publishing the release assets makes the requested source usable; no production database changes, firmware flashing or private credential upload is included.
