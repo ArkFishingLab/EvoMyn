@@ -9,7 +9,7 @@
   <rect width="1200" height="800" rx="24" fill="#f6f5f1"/>
   <g font-family="'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif">
     <text x="48" y="54" fill="#69736c" font-size="16" font-weight="600" letter-spacing="3">EVOMYN / HOW IT WORKS</text>
-    <text x="48" y="102" fill="#252d28" font-size="32" font-weight="600">记录日常，回顾自己的变化</text>
+    <text x="48" y="102" fill="#252d28" font-size="32" font-weight="600">让 AI 从你的经历中了解你</text>
     <text x="1152" y="99" fill="#69736c" font-size="17" text-anchor="end">经历 · 人脉 · 成长 · 提醒</text>
 
     <path d="M 210 244 V 174 H 600 V 244" fill="none" stroke="#6c756f" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
