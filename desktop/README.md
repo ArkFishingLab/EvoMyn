@@ -1,11 +1,12 @@
 # EvoMyn · Windows 桌面应用
 
-安装 `EvoMyn-Setup-0.2.8-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
+安装 `EvoMyn-Setup-0.2.9-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
 
 ## 使用
 
 - **记忆**：本机看板；**能力**：按功能包管理 MCP；**客户端接入**：导出本机客户端配置、按需连接小智；**应用设置**：桌面偏好、本地数据及更新。
 - **MCP 开关**：位于左侧导航底部，控制应用拥有的执行进程。关闭后，已连接的客户端也不能继续调用工具，看板仍可访问。
+- **能力列表与商城**：展示 PC 提供或可安装的 MCP 功能；圆盘自带的计划提醒不列入其中，仍在圆盘上使用。
 - **小智云端连接**：单独控制云连接；同时需要 MCP 总开关开启。Codex、Claude 使用本机 stdio 转发，不需要云端连接。
 - MCP 无需绑定小智即可使用。开启“小智连接”时才检查接入点，缺少时打开引导，说明控制台获取步骤；保存后连接，实际连通才显示已连接。取消或输错不会停止本地 MCP。暂停小智也会保留本地服务。
 - 关闭窗口后保留托盘服务；托盘菜单或设置中的「退出」会停止后台。重复启动会打开已有窗口。
@@ -14,6 +15,10 @@
 普通安装的数据位于 `%LOCALAPPDATA%\PersonalMemory\service\`：数据库是 `state\data\mnemosyne.db`，小智凭证是私有 `app\.env`。设置中的「打开数据目录」可直达数据库目录。安装代码、更新缓存与用户数据分开；升级及卸载默认保留用户数据。桌面版本创建自己的数据库，不自动搬移源码启动器的已有记录。需要搬移时先使用原服务的备份功能，保留原库，避免复制正在写入的 SQLite 文件。
 
 源码 `Start.cmd` 是另一种运行方式。它的独立 stdio 进程不受桌面开关控制；使用桌面版本时，应停用旧入口并换成桌面应用导出的客户端配置。
+
+### 手动备份
+
+0.2.9 撤下 GitHub 云备份入口和配置流程。用户可通过 MCP 的 `archive_backup` 手动创建数据库快照，文件保存在 `%LOCALAPPDATA%\PersonalMemory\service\state\backups\`；包含记忆、历史和分类，不包含附件。附件另存 `state/resources/`。也可退出应用及共享客户端后，自行复制整个 `state/`。没有默认定时备份或云端上传；现有备份和配置保留。[完整步骤](../server/personal-memory/BACKUP.md)。
 
 ### 0.2.5 名称升级兼容
 
@@ -25,11 +30,11 @@
 
 设置 → 应用更新，支持 HTTPS 检查、下载、进度和「重启并安装」。更新说明使用发布者的 Ed25519 密钥签名，安装前再次校验文件大小和 SHA-256，并确认服务及登记的客户端转发进程退出。签名不符、降级或进程未退出时不会安装。
 
-0.2.8 起默认内置 `https://github.com/clover-Saber/EvoMyn/releases/latest/download/latest.json`，用户无需配置更新来源。已有空地址或无效旧地址会回到此默认源；有效的自定义 HTTPS 地址继续保留。在高级「更新来源」中清空并保存可恢复默认。0.2.6 及更早版本需要一次性填入上述地址，之后即可在应用内升级，不需要手动下载安装程序。
+0.2.7 起默认内置 `https://github.com/clover-Saber/EvoMyn/releases/latest/download/latest.json`，用户无需配置更新来源。已有空地址或无效旧地址会回到此默认源；有效的自定义 HTTPS 地址继续保留。在高级「更新来源」中清空并保存可恢复默认。0.2.6 及更早版本需要一次性填入上述地址，之后即可在应用内升级，不需要手动下载安装程序。
 
 发布文件位于 [GitHub Releases](https://github.com/clover-Saber/EvoMyn/releases/latest)，记录、配置和数据库仍在本机。也可选择签名说明及对应 EXE 导入离线更新。更新签名与 Windows Authenticode 是两种机制；当前安装包没有 Windows 发布者证书，Windows 可能显示未识别发布者。
 
-0.2.8 的检查与下载使用 Electron 系统网络栈，支持 Windows 系统代理和 PAC；仍逐跳校验 HTTPS，限制重定向次数和文件大小，并检查更新签名及哈希。旧版在需要系统代理的网络中可能无法直接下载，可先在应用内导入本机签名更新包升级一次。
+0.2.8 起的检查与下载使用 Electron 系统网络栈，支持 Windows 系统代理和 PAC；仍逐跳校验 HTTPS，限制重定向次数和文件大小，并检查更新签名及哈希。旧版在需要系统代理的网络中可能无法直接下载，可先在应用内导入本机签名更新包升级一次。
 
 ## 构建
 
@@ -45,7 +50,7 @@ npm test
 npm run dist
 ```
 
-输出：`desktop/dist/EvoMyn-Setup-0.2.8-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
+输出：`desktop/dist/EvoMyn-Setup-0.2.9-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
 
 ## 发布更新
 
@@ -53,10 +58,10 @@ npm run dist
 
 ```powershell
 # desktop/ 内；使用当前已备份的发布密钥签名
-node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.8-x64.exe --version 0.2.8 --url https://github.com/clover-Saber/EvoMyn/releases/download/v0.2.8/EvoMyn-Setup-0.2.8-x64.exe --output dist/latest.json
-gh release create v0.2.8 dist/EvoMyn-Setup-0.2.8-x64.exe dist/latest.json --repo clover-Saber/EvoMyn --target main --title "EvoMyn 0.2.8" --notes "内置 GitHub 更新源，支持自定义记忆分类。" --draft
+node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.9-x64.exe --version 0.2.9 --url https://github.com/clover-Saber/EvoMyn/releases/download/v0.2.9/EvoMyn-Setup-0.2.9-x64.exe --output dist/latest.json
+gh release create v0.2.9 dist/EvoMyn-Setup-0.2.9-x64.exe dist/latest.json --repo clover-Saber/EvoMyn --target main --title "EvoMyn 0.2.9" --notes "内置 GitHub 更新源，支持自定义记忆分类。" --draft
 # 确认附件齐全后发布
-gh release edit v0.2.8 --repo clover-Saber/EvoMyn --draft=false --latest
+gh release edit v0.2.9 --repo clover-Saber/EvoMyn --draft=false --latest
 ```
 
 后续发布应同时更新版本号、版本标签、安装包名称和签名说明中的版本专属下载地址。每个正式 Release 均附同名 `latest.json`，固定的 `/releases/latest/download/latest.json` 会指向最新正式版本。先创建草稿并上传全部文件，检查后再发布，避免用户读取不完整版本。省略 `--url` 仍可生成离线说明。

@@ -19,7 +19,7 @@ import zipfile
 
 
 PACKAGE = 'evomyn-mcp'
-VERSION = '0.2.8'
+VERSION = '0.2.9'
 BASE = 'server/personal-memory'
 VENDOR_FILES = (
     'archive_store.py', 'archive_categories.py', 'backup_bundle.py', 'backup_github.py', 'backup_manager.py',

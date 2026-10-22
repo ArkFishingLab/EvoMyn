@@ -4,7 +4,7 @@
 
 ## 当前入口与能力
 
-默认[看板](http://127.0.0.1:18768/memory/)提供可自定义分类的档案、搜索、关联、历史版本、备份及能力管理；[接入配置](http://127.0.0.1:18768/setup/)生成本机 stdio MCP 配置。Codex、Claude Code 等客户端按需启动独立进程并共享同一档案库。配置页不覆盖客户端已有配置，也不把云端凭证写入下载的 TOML / JSON。
+默认[看板](http://127.0.0.1:18768/memory/)提供可自定义分类的档案、搜索、关联、历史版本及能力管理；[接入配置](http://127.0.0.1:18768/setup/)生成本机 stdio MCP 配置。Codex、Claude Code 等客户端按需启动独立进程并共享同一档案库。配置页不覆盖客户端已有配置，也不把云端凭证写入下载的 TOML / JSON。
 
 小智通过可选的出站 WebSocket 桥接使用这些工具；无硬件、无云服务器也可使用 PC 档案。商城提供已适配能力，世界时间按需安装到独立环境，不接受任意安装命令或地址。能力开关同时限制工具发现与调用；改变后重新连接客户端以刷新工具列表。
 
@@ -17,11 +17,11 @@
 | `local/launcher.py` / `bootstrap.ps1` | 安装、启动、停止、状态及客户端 stdio 入口 |
 | `local/dashboard.py` / `onboarding.py` | 回环看板前门及凭证只写的接入配置 |
 | `vendor/` | 档案适配、MCP、能力管理、设备网关与旧计划兼容模块 |
-| `viewer/` | 只读档案界面及独立备份管理 |
+| `viewer/` | 只读档案界面与分类设置 |
 | `distribution/` | 干净发行包的文档、许可、样式及配置模板 |
 | `tests/` | 使用隔离数据和测试凭证的回归检查 |
 
-运行副本的 `app/.env` 保存私有配置，`state/data/mnemosyne.db` 保存原文和历史版本，`app/models/` 保存模型缓存，`logs/` 保存本机日志。原文先持久化，语义索引失败后可重试；首次语义检索可能联网下载模型。使用 `archive_backup` 或界面备份功能创建 SQLite 一致性备份；恢复前停止所有共享该库的进程，另存旧文件，勿混用旧 WAL/SHM。[BACKUP.md](BACKUP.md)描述备份功能。
+运行副本的 `app/.env` 保存私有配置，`state/data/mnemosyne.db` 保存原文和历史版本，`app/models/` 保存模型缓存，`logs/` 保存本机日志。原文先持久化，语义索引失败后可重试；首次语义检索可能联网下载模型。备份由用户按需手动执行：`archive_backup` 创建 SQLite 一致性快照，附件需另存 `state/resources/`。当前不提供 GitHub 云备份配置。恢复前停止所有共享该库的进程，另存旧文件，勿混用旧 WAL/SHM。[BACKUP.md](BACKUP.md)说明备份和恢复步骤。
 
 ## 开发与来源
 
@@ -40,6 +40,8 @@ node --test server/personal-memory/viewer/tests/backup.test.mjs server/personal-
 ## 设备完成日志直传 PC
 
 新增设备专用 HTTPS 网关，缺省关闭。圆盘保存提醒和完成事件，PC 仅将用户实际确认完成的事件写入档案的 `journal` 分类；标题、正文和补充说明原样保留，不生成总结。不创建或更新 PC planner 待办。默认由设备管理提醒；PC 旧计划页面及同步进程已退役，保留其数据而不自动迁移。
+
+圆盘内置的计划提醒不出现在「我的能力」和能力商城中；已有旧开关配置保留，但不会在设备模式启用 PC 计划工具。显式选择历史 PC 模式的兼容路径不变。
 
 `local/dashboard.py` 读取以下配置启动独立后台监听器（不经 dashboard 反向代理）：
 

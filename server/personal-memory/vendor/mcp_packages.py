@@ -59,11 +59,7 @@ class Packages:
         result = []
         for item in MANIFEST:
             if item['id'] == 'planner' and self.owner == 'device':
-                result.append({**item, 'owner': 'device', 'external': True, 'tools': (),
-                    'enabled': False, 'installed': True, 'source': '圆盘设备',
-                    'description': '计划和提醒由圆盘本地保存与执行，PC 仅接收完成日志。',
-                    'setup': '使用圆盘 self.planner.* 工具管理；PC 计划能力已下线。',
-                    'adaptation': '设备自主管理', 'requires_key': False})
+                # Device-native features are not installable PC MCP capabilities.
                 continue
             installed = item['builtin'] or self.installed(item['id'], item['version'])
             result.append({**item, 'installed': installed, 'enabled': enabled[item['id']] and installed,

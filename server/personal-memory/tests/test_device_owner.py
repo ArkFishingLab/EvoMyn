@@ -30,16 +30,14 @@ class Registry:
 
 
 class DeviceOwnerTests(unittest.TestCase):
-    def test_packages_show_external_owner_and_ignore_persisted_planner_enable(self):
+    def test_device_builtins_are_absent_from_capabilities_and_ignore_saved_planner_enable(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'PLANNER_OWNER': 'device'}):
             location = Path(tmp) / 'packages.json'
             location.write_text(json.dumps({'archive': True, 'planner': True}))
             packages = Packages(location)
             catalog = {item['id']: item for item in packages.catalog()}
-            self.assertFalse(catalog['planner']['enabled'])
-            self.assertEqual(catalog['planner']['owner'], 'device')
-            self.assertTrue(catalog['planner']['external'])
-            self.assertEqual(catalog['planner']['tools'], ())
+            self.assertNotIn('planner', catalog)
+            self.assertNotIn('planner', {item['id'] for item in packages.list()})
             self.assertTrue(catalog['archive']['enabled'])
             before = location.read_bytes()
             with self.assertRaisesRegex(ValueError, 'device|圆盘'):

@@ -84,6 +84,7 @@ codex mcp add evomyn -- 'D:/EvoMyn/.venv/Scripts/python.exe' -X utf8 'D:/EvoMyn/
 首次使用语义索引可能下载多语言模型；看板和标准连接检查不要求预下载模型。
 可以先使用 `archive_status`、`archive_list` 和原文筛选功能。
 通过 `archive_backup` 获取一致性备份；迁移或更新前先备份，并保留本机配置。
+当前不提供 GitHub 云备份配置；本地快照不包含附件，`state/resources/` 需另存。直接复制整个 `state/` 前，应退出应用和所有共享该库的客户端。
 开源发行包始终为空白库，不携带作者的记录、模型缓存、服务器凭证或固件镜像。
 
 端口占用时，启动器会说明冲突而不会接管其他进程。可在 `app/.env` 修改

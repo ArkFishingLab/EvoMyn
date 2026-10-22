@@ -82,7 +82,6 @@ html body .tool-list span{border-radius:5px}
 html body .drawer,html body dialog{border-radius:12px;border-color:var(--line);box-shadow:0 12px 50px #24242314}
 html body .drawer-title{font-size:23px!important;font-weight:600}
 html body .detail-content{font-size:13px;line-height:1.9}
-html body .backup-card{border-radius:10px}
 @media(max-width:1000px){html body .hero{padding:30px 30px 22px!important}
 html body .workspace>main{padding:0 30px 30px!important}
 html body .archive-sidebar{padding:0 30px 20px}

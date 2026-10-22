@@ -3,7 +3,6 @@
 // MIT License; original source and attribution are preserved in ../LICENSE and ../SOURCE.json.
 import { $, $$, esc, stateHtml, showHtmlDetail } from './personal-shared.mjs';
 import { categoryMap, selectRecords, relatedRecords, summarize, safeResourceUrl, formatRecordDate } from './personal-model.mjs';
-import { mountBackup } from './backup.mjs';
 import { mountCategories } from './categories.mjs';
 
 let records = [];
@@ -15,10 +14,9 @@ let loading = false;
 let nativeStatus = null;
 let triggerRecordId = null;
 let archiveError = false;
-const backupPanel = mountBackup($('#backup'));
 const categoryManager = mountCategories($('#categoryManager'), {onChange(items) {
   categories = categoryMap(items, records);
-  if (!['overview', 'backup'].includes(category) && !Object.hasOwn(categories, category)) history.replaceState(null, '', '#overview');
+  if (category !== 'overview' && !Object.hasOwn(categories, category)) history.replaceState(null, '', '#overview');
   route();
   void load();
 }});
@@ -31,9 +29,9 @@ function filters() {
   return { category: category === 'overview' ? 'all' : category, query: $('#searchQuery').value, from: $('#fromDate').value, to: $('#toDate').value };
 }
 function renderNav(summary) {
-  const icons = {overview:'OV',people:'PN',journal:'JR',background:'ME',event:'EV',resource:'FL',backup:'BK'};
-  const html = [['overview', '全部'], ...Object.entries(categories).map(([key, value]) => [key, value.label]), ...(document.body.dataset.backupEnabled === 'false' ? [] : [['backup', '备份']])].map(([key, label]) =>
-    `<button data-tab="${esc(key)}" class="${category === key ? 'active' : ''}"${category === key ? ' aria-current="page"' : ''}><span aria-hidden="true">${icons[key] || 'CT'}</span>${esc(label)}${['overview', 'backup'].includes(key) ? '' : `<span class="nav-count">${summary.counts[key] || 0}</span>`}</button>`).join('');
+  const icons = {overview:'OV',people:'PN',journal:'JR',background:'ME',event:'EV',resource:'FL'};
+  const html = [['overview', '全部'], ...Object.entries(categories).map(([key, value]) => [key, value.label])].map(([key, label]) =>
+    `<button data-tab="${esc(key)}" class="${category === key ? 'active' : ''}"${category === key ? ' aria-current="page"' : ''}><span aria-hidden="true">${icons[key] || 'CT'}</span>${esc(label)}${key === 'overview' ? '' : `<span class="nav-count">${summary.counts[key] || 0}</span>`}</button>`).join('');
   if ($('#categoryNav').innerHTML !== html) $('#categoryNav').innerHTML = html;
 }
 function renderOverview() {
@@ -44,22 +42,8 @@ function render() {
   const summary = summarize(records, categories);
   renderNav(summary);
   $('#recordTotal').hidden = category !== 'overview';
-  const backup = category === 'backup';
-  $('#backup').classList.toggle('active', backup);
-  $('.menu-search').hidden = backup;
-  $('#filterStatus').hidden = backup;
-  $('#bootError').hidden = backup || !archiveError;
+  $('#bootError').hidden = !archiveError;
   $('#recordTotal').textContent = `${records.length} 条`;
-  if (backup) {
-    $('#pageTitle').textContent = '备份管理。';
-    $('#pageDescription').textContent = '加密留存，按需备份；让记忆有处可归。';
-    $('.toolbar').hidden = true;
-    $('#overview').classList.remove('active');
-    $('#records').classList.remove('active');
-    backupPanel.show();
-    return;
-  }
-  backupPanel.hide();
   const options = filters();
   const filtered = Boolean(options.query.trim() || options.from || options.to);
   $('#clearFilters').hidden = !filtered;
@@ -94,9 +78,10 @@ function openRecord(record) {
 }
 function route() {
   const [requestedCategory, encodedId] = location.hash.slice(1).split('/');
-  category = requestedCategory === 'backup' || Object.hasOwn(categories, requestedCategory) ? requestedCategory : 'overview';
+  if (requestedCategory === 'backup') history.replaceState(null, '', '#overview');
+  category = Object.hasOwn(categories, requestedCategory) ? requestedCategory : 'overview';
   render();
-  if (encodedId && ready && category !== 'backup') {
+  if (encodedId && ready) {
     let id;
     try { id = decodeURIComponent(encodedId); } catch { id = ''; }
     const record = records.find(item => item.id === id);
@@ -143,7 +128,7 @@ async function load() {
     nativeStatus = null;
     archiveError = true;
     $('#connectionStatus').textContent = '连接失败';
-    $('#bootError').hidden = category === 'backup';
+    $('#bootError').hidden = false;
     $('#bootError').innerHTML = `<strong>暂时无法读取记录</strong><p>${esc(error.message)} ${ready ? '当前显示的是上次读取的记录。' : ''}点击刷新重试。</p>`;
     if (!ready) { $('#overviewContent').innerHTML = ''; }
   } finally {

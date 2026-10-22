@@ -119,7 +119,7 @@ class PublicReleaseTests(unittest.TestCase):
         members = self.members(result['zip'])
         self.assertIn('evomyn-mcp/firmware/README.md', members)
         self.assertIn('evomyn-mcp/tools/export_round_sources.py', members)
-        self.assertEqual(members['evomyn-mcp/VERSION'], b'0.2.8\n')
+        self.assertEqual(members['evomyn-mcp/VERSION'], b'0.2.9\n')
 
     def test_reserved_test_domain_fixtures_do_not_disable_real_credential_audit(self):
         fixture = 'wss://fixture.test/mcp?token=' + 'obviously-dummy-fixture'
