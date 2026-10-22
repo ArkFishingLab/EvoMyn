@@ -146,7 +146,7 @@ sequenceDiagram
 | 校验 | Ed25519 签名、平台、版本、大小与 SHA-256 | HTTPS 设备鉴权、板型、分区、版本、镜像大小与 SHA-256 等 |
 | 影响范围 | 更新桌面程序与随包服务代码，默认保留用户数据 | 更新设备固件，不安装或升级 PC 应用 |
 
-桌面更新通过 Electron 网络栈使用 Windows 系统代理与 PAC，逐跳验证 HTTPS 并限制响应大小、重定向及空闲时间。默认源为 `https://github.com/clover-Saber/EvoMyn/releases/latest/download/latest.json`。更新说明的签名与 Windows Authenticode 独立，当前安装包没有 Windows 发布者证书。详见[桌面应用更新](../desktop/README.md#应用内更新)。
+桌面更新通过 Electron 网络栈使用 Windows 系统代理与 PAC，逐跳验证 HTTPS 并限制响应大小、重定向及空闲时间。默认源为 `https://github.com/ArkFishingLab/EvoMyn/releases/latest/download/latest.json`。更新说明的签名与 Windows Authenticode 独立，当前安装包没有 Windows 发布者证书。详见[桌面应用更新](../desktop/README.md#应用内更新)。
 
 设备 OTA 复用独立网关的固定路由 `/updates/manifest` 和 `/updates/firmware/<sha256>.bin`，默认没有可下载内容。发布器先校验应用镜像，再原子发布文件与 manifest；当前流程面向未加密、未签名的应用镜像，不能把它等同于桌面 Ed25519 签名更新。设备烧录、固件发布和小智官方激活分别配置，桌面升级不会自动烧录设备。配置与发布格式见[后端说明](../server/personal-memory/README.md)。
 

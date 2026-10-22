@@ -4,9 +4,19 @@ const assert=require('node:assert/strict');
 const {DEFAULT_UPDATE_FEED,resolveUpdateFeed}=require('../update-source.cjs');
 
 test('fresh and legacy empty preferences use the public EvoMyn release feed',()=>{
- const expected='https://github.com/clover-Saber/EvoMyn/releases/latest/download/latest.json';
+ const expected='https://github.com/ArkFishingLab/EvoMyn/releases/latest/download/latest.json';
  assert.equal(DEFAULT_UPDATE_FEED,expected);
  for(const value of [undefined,null,'','   '])assert.equal(resolveUpdateFeed(value),expected);
+});
+test('saved former official feeds migrate to the current repository',()=>{
+ for(const value of [
+  'https://github.com/clover-Saber/EvoMyn/releases/latest/download/latest.json',
+  ' https://github.com/CLOVER-SABER/EVOMYN/releases/latest/download/latest.json ',
+ ])assert.equal(resolveUpdateFeed(value),DEFAULT_UPDATE_FEED);
+});
+test('other paths at the former owner remain custom feeds',()=>{
+ const custom='https://github.com/clover-Saber/EvoMyn/releases/download/custom/latest.json';
+ assert.equal(resolveUpdateFeed(custom),custom);
 });
 test('a saved custom HTTPS update source is preserved',()=>{
  assert.equal(resolveUpdateFeed(' https://updates.example.test/latest.json '),'https://updates.example.test/latest.json');

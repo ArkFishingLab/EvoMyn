@@ -11,7 +11,7 @@ EvoMyn 是一个面向个人 AI 化的开源项目。<br />
 
 本地记忆 · 多 AI 接入 · ESP 智能设备
 
-[下载 Windows 应用](https://github.com/clover-Saber/EvoMyn/releases/latest) · [ESP 智能设备](#esp-智能设备让交互走到桌面上) · [快速开始](#快速开始) · [源码与开发](#源码与开发)
+[下载 Windows 应用](https://github.com/ArkFishingLab/EvoMyn/releases/latest) · [ESP 智能设备](#esp-智能设备让交互走到桌面上) · [快速开始](#快速开始) · [源码与开发](#源码与开发)
 
 Windows 桌面应用 · MCP 服务 · ESP32-S3 固件 · MIT 开源
 
@@ -122,7 +122,7 @@ EvoMyn 将日常经历保存在一份本地记忆库里，让不同 AI 在需要
 
 ### 1. 安装并打开应用
 
-在 [Releases](https://github.com/clover-Saber/EvoMyn/releases/latest) 下载 `EvoMyn-Setup-<版本>-x64.exe`，安装后打开 **EvoMyn**。
+在 [Releases](https://github.com/ArkFishingLab/EvoMyn/releases/latest) 下载 `EvoMyn-Setup-<版本>-x64.exe`，安装后打开 **EvoMyn**。
 
 安装包包含运行所需的 Python 和依赖，无需另装 Python、Node.js 或 Docker。首次使用语义检索可能需要联网下载模型；通过商城安装可选扩展时也需要联网。
 
@@ -206,7 +206,7 @@ Windows 桌面版的默认位置：
 准备 Windows、Git，以及 **Python 3.11（推荐）或 uv**；首次启动需要联网下载依赖。
 
 ```powershell
-git clone https://github.com/clover-Saber/EvoMyn.git
+git clone https://github.com/ArkFishingLab/EvoMyn.git
 cd EvoMyn
 .\Start.cmd
 ```
