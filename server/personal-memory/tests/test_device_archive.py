@@ -102,7 +102,7 @@ class DeviceArchiveTests(unittest.TestCase):
         self.assertEqual(len(self.store.history(results[0]['record_id'])), 1)
 
     def test_explicit_archive_root_is_used_without_global_environment_changes(self):
-        destination = Path(self.tmp.name) / 'device-isolated'
+        destination = Path(self.tmp.name).resolve() / 'device-isolated'
         module = types.ModuleType('archive_store')
         module.ArchiveStore = isolated_store
         receiver = DeviceArchive(archive_root=destination)

@@ -32,7 +32,7 @@ def free_port():
 class PortableLauncherTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='portable launcher 中文 ')
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         (self.root / 'app').mkdir()
         self.assertTrue(SOURCE.is_file(), 'Portable launcher implementation is missing')
         self.launcher = load_launcher()
