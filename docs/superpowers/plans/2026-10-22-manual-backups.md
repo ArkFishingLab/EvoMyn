@@ -9,6 +9,6 @@
 - [x] Remove the active cloud backup UI and update existing real-window acceptance for six default navigation entries and old backup bookmarks.
 - [x] Document `archive_backup`, snapshot locations, attachment limitations, and safe manual restore. Preserve private configuration and backup files.
 - [x] Build 0.2.9, run viewer/model, desktop and public-export checks, and exercise the packaged desktop against isolated records.
-- [ ] Audit and push the change; publish signed 0.2.9 to the existing built-in update feed and verify the published manifest/assets.
+- [x] Audit and push the change; publish signed 0.2.9 to the existing built-in update feed and verify the published manifest/assets.
 
 No installed database or backup file is modified. GitHub remains the source/update host; personal backup uploads are deferred.
