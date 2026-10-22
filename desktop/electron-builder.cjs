@@ -9,7 +9,7 @@ module.exports={
  electronDist:()=>path.dirname(require('electron')),
  asar:true,
  directories:{output:'dist',buildResources:'assets'},
- files:['main.cjs','preload.cjs','service-client.cjs','connection-flow.cjs','layout.cjs','startup.cjs','updater.cjs','update-source.cjs','security.cjs','update-trust.json','ui/**/*','assets/icon.*','package.json'],
+ files:['main.cjs','preload.cjs','service-client.cjs','connection-flow.cjs','layout.cjs','startup.cjs','updater.cjs','update-source.cjs','update-transport.cjs','security.cjs','update-trust.json','ui/**/*','assets/icon.*','package.json'],
  extraResources:[
   {from:'build/runtime',to:'backend',filter:['**/*','!**/__pycache__/**','!**/*.pyc','!**/*.pyo']},
   {from:'backend',to:'backend/scripts',filter:['*.py']}

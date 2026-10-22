@@ -307,7 +307,10 @@ class DesktopBackend(unittest.TestCase):
             .add_extension(x509.SubjectAlternativeName([x509.DNSName('localhost'),
                 x509.IPAddress(ipaddress.ip_address('127.0.0.1'))]), critical=False)
             .sign(key, hashes.SHA256()))
-        certfile, keyfile = self.base / 'test-ca.pem', self.base / 'test-key.pem'
+        tls_temp = tempfile.TemporaryDirectory(prefix='desktop-tls-')
+        self.addCleanup(tls_temp.cleanup)
+        tls_root = Path(tls_temp.name).resolve()
+        certfile, keyfile = tls_root / 'test-ca.pem', tls_root / 'test-key.pem'
         certfile.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
         keyfile.write_bytes(key.private_bytes(serialization.Encoding.PEM,
             serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))

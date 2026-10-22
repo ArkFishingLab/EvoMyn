@@ -169,7 +169,7 @@ async def serve(root):
             return types.CallToolResult(isError=True, content=[types.TextContent(type='text',
                 text='EvoMyn MCP 已关闭或桌面应用不可用。请在桌面应用开启后重试。')])
 
-    server = Server('EvoMyn', version='0.2.7',
+    server = Server('EvoMyn', version='0.2.8',
                     on_list_tools=list_tools, on_call_tool=call_tool)
     descriptor_path = Path(root) / 'desktop-session.json'
     try:

@@ -67,7 +67,7 @@ def free_ports():
 class WorkspaceLauncherTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='source checkout 中文 ')
-        self.root = Path(self.temp.name) / 'clone with spaces'
+        self.root = Path(self.temp.name).resolve() / 'clone with spaces'
         self.root.mkdir()
         self.runtime = self.root / 'artifacts/local-memory-mcp'
         self.environment = dict(os.environ)

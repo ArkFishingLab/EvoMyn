@@ -19,7 +19,7 @@ import zipfile
 
 
 PACKAGE = 'evomyn-mcp'
-VERSION = '0.2.7'
+VERSION = '0.2.8'
 BASE = 'server/personal-memory'
 VENDOR_FILES = (
     'archive_store.py', 'archive_categories.py', 'backup_bundle.py', 'backup_github.py', 'backup_manager.py',
@@ -185,6 +185,7 @@ def json_bytes(value) -> bytes:
 def build_public_release(workspace, output=None, include_firmware=False):
     workspace = Path(os.path.abspath(workspace))
     reject_linked_ancestors(workspace)
+    workspace = workspace.resolve()
     staging = workspace / 'artifacts' / 'public-release'
     reject_linked_ancestors(staging)
     staging.mkdir(parents=True, exist_ok=True)

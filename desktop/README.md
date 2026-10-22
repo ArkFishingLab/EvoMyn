@@ -1,6 +1,6 @@
 # EvoMyn · Windows 桌面应用
 
-安装 `EvoMyn-Setup-0.2.7-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
+安装 `EvoMyn-Setup-0.2.8-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
 
 ## 使用
 
@@ -25,9 +25,11 @@
 
 设置 → 应用更新，支持 HTTPS 检查、下载、进度和「重启并安装」。更新说明使用发布者的 Ed25519 密钥签名，安装前再次校验文件大小和 SHA-256，并确认服务及登记的客户端转发进程退出。签名不符、降级或进程未退出时不会安装。
 
-0.2.7 起默认内置 `https://github.com/clover-Saber/EvoMyn/releases/latest/download/latest.json`，用户无需配置更新来源。已有空地址或无效旧地址会回到此默认源；有效的自定义 HTTPS 地址继续保留。在高级「更新来源」中清空并保存可恢复默认。0.2.6 及更早版本需要一次性填入上述地址，之后即可在应用内升级，不需要手动下载安装程序。
+0.2.8 起默认内置 `https://github.com/clover-Saber/EvoMyn/releases/latest/download/latest.json`，用户无需配置更新来源。已有空地址或无效旧地址会回到此默认源；有效的自定义 HTTPS 地址继续保留。在高级「更新来源」中清空并保存可恢复默认。0.2.6 及更早版本需要一次性填入上述地址，之后即可在应用内升级，不需要手动下载安装程序。
 
 发布文件位于 [GitHub Releases](https://github.com/clover-Saber/EvoMyn/releases/latest)，记录、配置和数据库仍在本机。也可选择签名说明及对应 EXE 导入离线更新。更新签名与 Windows Authenticode 是两种机制；当前安装包没有 Windows 发布者证书，Windows 可能显示未识别发布者。
+
+0.2.8 的检查与下载使用 Electron 系统网络栈，支持 Windows 系统代理和 PAC；仍逐跳校验 HTTPS，限制重定向次数和文件大小，并检查更新签名及哈希。旧版在需要系统代理的网络中可能无法直接下载，可先在应用内导入本机签名更新包升级一次。
 
 ## 构建
 
@@ -43,7 +45,7 @@ npm test
 npm run dist
 ```
 
-输出：`desktop/dist/EvoMyn-Setup-0.2.7-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
+输出：`desktop/dist/EvoMyn-Setup-0.2.8-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
 
 ## 发布更新
 
@@ -51,10 +53,10 @@ npm run dist
 
 ```powershell
 # desktop/ 内；使用当前已备份的发布密钥签名
-node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.7-x64.exe --version 0.2.7 --url https://github.com/clover-Saber/EvoMyn/releases/download/v0.2.7/EvoMyn-Setup-0.2.7-x64.exe --output dist/latest.json
-gh release create v0.2.7 dist/EvoMyn-Setup-0.2.7-x64.exe dist/latest.json --repo clover-Saber/EvoMyn --target main --title "EvoMyn 0.2.7" --notes "内置 GitHub 更新源，支持自定义记忆分类。" --draft
+node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.8-x64.exe --version 0.2.8 --url https://github.com/clover-Saber/EvoMyn/releases/download/v0.2.8/EvoMyn-Setup-0.2.8-x64.exe --output dist/latest.json
+gh release create v0.2.8 dist/EvoMyn-Setup-0.2.8-x64.exe dist/latest.json --repo clover-Saber/EvoMyn --target main --title "EvoMyn 0.2.8" --notes "内置 GitHub 更新源，支持自定义记忆分类。" --draft
 # 确认附件齐全后发布
-gh release edit v0.2.7 --repo clover-Saber/EvoMyn --draft=false --latest
+gh release edit v0.2.8 --repo clover-Saber/EvoMyn --draft=false --latest
 ```
 
 后续发布应同时更新版本号、版本标签、安装包名称和签名说明中的版本专属下载地址。每个正式 Release 均附同名 `latest.json`，固定的 `/releases/latest/download/latest.json` 会指向最新正式版本。先创建草稿并上传全部文件，检查后再发布，避免用户读取不完整版本。省略 `--url` 仍可生成离线说明。

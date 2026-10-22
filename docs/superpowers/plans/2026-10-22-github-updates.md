@@ -6,6 +6,8 @@
 
 **Tech Stack:** Electron, Node.js tests, Python isolated acceptance and packaging, Git, GitHub CLI, Ed25519.
 
+**Public verification follow-up:** Keep the published 0.2.7 immutable and release 0.2.8 with Electron system-proxy transport. Real public download exposed Node HTTPS bypassing Windows proxy. Fix the first GitHub Windows CI findings (8.3 aliases in exporter/launcher fixtures and Unicode TLS trust fixture) without weakening guards or assertions.
+
 - [x] Inspect remote refs, repository ownership and available credential access. Preserve any existing remote history; never force-push.
 - [x] Add failing tests for default, legacy empty, invalid saved and valid custom update feeds in `desktop/tests/update-source.test.cjs`; implement `desktop/update-source.cjs`, wire `desktop/main.cjs` and the builder file list. Saving an empty feed restores the embedded default.
 - [x] Verify the actual desktop shell exposes the built-in feed with an enabled update check. Update active docs and release versions to 0.2.7. Preserve application identity, data directory and update trust.

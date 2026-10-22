@@ -1,9 +1,10 @@
 'use strict';
-const {app,BrowserWindow,WebContentsView,Tray,Menu,ipcMain,dialog,shell,session}=require('electron');
+const {app,BrowserWindow,WebContentsView,Tray,Menu,ipcMain,dialog,shell,session,net}=require('electron');
 const path=require('node:path');const fs=require('node:fs');const fsp=require('node:fs/promises');const crypto=require('node:crypto');
 const {pathToFileURL}=require('node:url');
 const {ServiceClient}=require('./service-client.cjs');const {UpdateManager,httpsUrl}=require('./updater.cjs');
 const {DEFAULT_UPDATE_FEED,resolveUpdateFeed}=require('./update-source.cjs');
+const {createUpdateTransport,createElectronFetch}=require('./update-transport.cjs');
 const {ConnectionFlow}=require('./connection-flow.cjs');
 const {contentBounds,contentSpacing}=require('./layout.cjs');
 const {migrateLoginItem}=require('./startup.cjs');
@@ -109,7 +110,7 @@ async function create(){
  migrateLoginItem(app,{executable:process.execPath,enabled:preferences.startAtLogin,isolated:!!process.env.PERSONAL_MEMORY_HOME});
  connection=new ConnectionFlow({request:async(command,params)=>{const status=await service.request(command,params);serviceStatus=status;return status;},needsSetup:async()=>{reveal();await showPage('setup');await window.webContents.executeJavaScript("document.getElementById('xiaozhi-details').open=true;document.getElementById('endpoint').focus();document.getElementById('endpoint').scrollIntoView({block:'center'})");}});
  const trust=require('./update-trust.json');
- updater=new UpdateManager({currentVersion:app.getVersion(),publicKey:crypto.createPublicKey({key:Buffer.from(trust.publicKey,'base64'),format:'der',type:'spki'}),cacheDir:path.join(home,'updates'),onBeforeInstall:async()=>{clearInterval(poll);await service.stop();},feedUrl:preferences.updateFeed});
+ updater=new UpdateManager({currentVersion:app.getVersion(),publicKey:crypto.createPublicKey({key:Buffer.from(trust.publicKey,'base64'),format:'der',type:'spki'}),cacheDir:path.join(home,'updates'),transport:createUpdateTransport(createElectronFetch(net.request.bind(net))),onBeforeInstall:async()=>{clearInterval(poll);await service.stop();},feedUrl:preferences.updateFeed});
  updater.on('status',broadcast);
  session.defaultSession.setPermissionRequestHandler((_webContents,_permission,callback)=>callback(false));
  session.defaultSession.setPermissionCheckHandler(()=>false);

@@ -2,6 +2,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -33,6 +34,21 @@ class PublicReleaseTests(unittest.TestCase):
     def members(self, output):
         with zipfile.ZipFile(output) as archive:
             return {name: archive.read(name) for name in archive.namelist()}
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows short path aliases')
+    def test_windows_short_workspace_alias_preserves_export_contents(self):
+        import ctypes
+        from ctypes import wintypes
+        get_short = ctypes.WinDLL('kernel32', use_last_error=True).GetShortPathNameW
+        get_short.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+        buffer = ctypes.create_unicode_buffer(32768)
+        self.assertTrue(get_short(str(self.root.resolve()), buffer, len(buffer)))
+        alias = Path(buffer.value)
+        if str(alias).casefold() == str(self.root.resolve()).casefold():
+            self.skipTest('8.3 alias creation is disabled on this volume')
+        expected = self.members(release.build_public_release(self.root)['zip'])
+        actual = self.members(release.build_public_release(alias)['zip'])
+        self.assertEqual(actual, expected)
 
     def test_explicit_allowlist_blocks_private_state_and_arbitrary_additions(self):
         for name in (
@@ -103,7 +119,7 @@ class PublicReleaseTests(unittest.TestCase):
         members = self.members(result['zip'])
         self.assertIn('evomyn-mcp/firmware/README.md', members)
         self.assertIn('evomyn-mcp/tools/export_round_sources.py', members)
-        self.assertEqual(members['evomyn-mcp/VERSION'], b'0.2.7\n')
+        self.assertEqual(members['evomyn-mcp/VERSION'], b'0.2.8\n')
 
     def test_reserved_test_domain_fixtures_do_not_disable_real_credential_audit(self):
         fixture = 'wss://fixture.test/mcp?token=' + 'obviously-dummy-fixture'

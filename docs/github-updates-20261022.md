@@ -20,4 +20,8 @@ Windows 0.2.7 内置官方源 `https://github.com/clover-Saber/EvoMyn/releases/l
 
 ## 发布与公开链路
 
+首次公开版本 0.2.7 已推送至 `main` 并发布到 GitHub Releases。实际公网验证发现 Node HTTPS 未使用本机 Windows 系统代理；0.2.8 改为 Electron `net.request`，在不放松 HTTPS、凭证隔离、签名、大小或流式限制的情况下兼容代理。用修复后的真实 Electron 网络栈下载公开 0.2.7 安装包，179725890 字节及 SHA-256 与本机构建完全一致，更新状态达到 ready；没有执行安装。0.2.7 已发布文件保持不变。
+
+0.2.8 新增网络传输及 Electron 适配回归，桌面 Node.js 套件累计 47 项通过。GitHub 初次 CI 还暴露 Windows 短路径别名与 TLS 测试证书目录问题：导出器保留链接拒绝检查，再规范化根目录；新增真实 8.3 别名回归在修复前失败、修复后通过。启动器夹具统一路径别名，TLS 夹具仅将证书移至 ASCII 临时目录，保留中文应用和数据路径及全部验证断言。
+
 以 GitHub Release 的安装包与签名更新说明为更新载荷，源码不需要独立中转服务器。完整开源范围包括 PC MCP、看板、Windows 桌面源码及可选圆盘固件。固件未修改或烧录，Windows 安装程序仍未进行发布者证书签名。
