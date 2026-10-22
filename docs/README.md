@@ -8,6 +8,8 @@ Windows 0.2.6 新增自定义记忆分类，操作与验证见[分类验收说�
 
 Windows 0.2.7 内置 GitHub Releases 更新源，配置兼容与验证见[更新源验收说明](github-updates-20261022.md)。
 
+Windows 0.2.9 暂不提供云备份入口，圆盘内置提醒移出能力目录，验证见[界面范围调整](simplified-capabilities-20261022.md)。
+
 | 文档 | 用途 |
 | --- | --- |
 | [architecture.md](architecture.md) | 模块、进程、数据与私有边界 |
