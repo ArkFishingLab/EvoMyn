@@ -1,0 +1,134 @@
+name: personal-memory
+services:
+  memory:
+    build: .
+    image: personal-memory:20261016
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      HOME: /tmp
+    volumes:
+      - ./state:/state
+      - ./models:/app/models
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '2'
+  viewer:
+    build:
+      context: .
+      dockerfile: Dockerfile.viewer
+    image: personal-memory-viewer:20261016
+    restart: unless-stopped
+    init: true
+    volumes:
+      - ./state:/state:ro
+    ports:
+      - 127.0.0.1:8768:8768
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 96m
+    cpus: 0.25
+    pids_limit: 64
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8768/api/status',timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '2'
+  planner:
+    build:
+      context: .
+      dockerfile: Dockerfile.planner
+    image: personal-memory-planner:20261016
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      PERSONAL_ARCHIVE_HOME: /state
+    volumes:
+      - ./state:/state
+    ports:
+      - 127.0.0.1:8769:8769
+      - 127.0.0.1:8770:8770
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8769/api/status',timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '2'
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile.backup
+    image: personal-memory-backup:20261016
+    restart: unless-stopped
+    init: true
+    environment:
+      BACKUP_HOME: /backup
+      BACKUP_SOURCE: /state
+      BACKUP_CONFIG: /config
+      BACKUP_ALLOWED_HOSTS: localhost,127.0.0.1
+    volumes:
+      - ./state:/state:ro
+      - ./backup-state:/backup
+      - ./backup-config:/config:ro
+    depends_on:
+      planner:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:8780:8780
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8780/api/status',timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '2'

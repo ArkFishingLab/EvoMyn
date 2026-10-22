@@ -1,0 +1,58 @@
+<!doctype html>
+<!-- Personal adaptation of wysie/mnemosyne-dashboard. MIT, see LICENSE. -->
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ffffff"><title>记忆 · EvoMyn</title>
+  <link rel="icon" href="./static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./static/style.css">
+  <link rel="stylesheet" href="./static/personal-native.css">
+  <link rel="stylesheet" href="./static/backup.css">
+  <link rel="stylesheet" href="./static/categories.css">
+</head>
+<body data-backup-enabled="true">
+<a class="skip-link" href="#content">跳到内容</a>
+<div class="shell">
+  <aside class="sidebar archive-sidebar" aria-label="个人信息分类">
+    <div class="mobile-topbar">
+      <button class="brand brand-home" data-tab="overview" aria-label="打开总览"><span class="brand-mark" aria-hidden="true">◧</span><span class="brand-name">EvoMyn</span></button>
+      <button id="mobileMenuToggle" class="mobile-menu-toggle" aria-expanded="false" aria-controls="sidebarMenu" aria-label="展开分类菜单">☰</button>
+    </div>
+    <button class="brand desktop-brand brand-home" data-tab="overview" aria-label="打开总览"><span class="brand-mark" aria-hidden="true">◧</span><span class="brand-name">EvoMyn</span></button>
+    <div id="sidebarMenu" class="sidebar-menu">
+      <nav class="primary-nav" aria-label="工作空间">
+        <a href="/memory/" class="active" aria-current="page">记忆</a>
+        <a href="/memory/planner/">计划</a>
+        <a href="/memory/mcp/">能力</a>
+      </nav>
+      <div class="menu-search"><input id="searchQuery" type="search" aria-label="搜索记录" placeholder="搜索你的记忆" autocomplete="off"><span aria-hidden="true">⌕</span></div>
+      <nav id="categoryNav" aria-label="记忆分类"></nav>
+      <button id="manageCategories" type="button" aria-haspopup="dialog">管理分类 <span aria-hidden="true">↗</span></button>
+    </div>
+  </aside>
+  <div class="workspace">
+    <header class="hero">
+      <div class="title-line"><h1 id="pageTitle">记忆</h1><span id="recordTotal" class="total-count"></span><p id="pageDescription" hidden></p></div>
+      <div class="hero-side"><span id="today" class="date-label"></span><div class="archive-status"><span id="connectionStatus" role="status">连接中</span><button id="refresh" aria-label="刷新记录" title="刷新">↻</button></div></div>
+    </header>
+    <main id="content" tabindex="-1">
+      <section class="toolbar" aria-label="筛选记录"><div class="date-range"><label>从<input id="fromDate" type="date" aria-label="发生日期开始"></label><span>—</span><label>到<input id="toDate" type="date" aria-label="发生日期结束"></label></div><button id="clearFilters" class="quiet-button" hidden>清除筛选</button></section>
+      <p id="filterStatus" class="muted filter-status" role="status"></p>
+      <section id="overview" class="tab active"><div id="overviewContent"></div></section>
+      <section id="records" class="tab"><div class="section-head"><h2 id="listTitle">全部记录</h2><span id="resultCount"></span></div><div id="recordList" class="list memory-grid"></div></section>
+      <section id="backup" class="tab" aria-label="备份管理"></section>
+      <div id="bootError" class="state-card state-error" role="alert" hidden></div>
+    </main>
+  </div>
+</div>
+<dialog id="detail" class="drawer" aria-labelledby="detailTitle"><button id="closeDetail" aria-label="关闭详情">×</button><div class="drawer-kicker" id="detailKind"></div><h2 id="detailTitle" class="drawer-title">详情</h2><div id="detailBody" class="html-detail"></div></dialog>
+<dialog id="categoryManager" class="category-dialog" aria-labelledby="categoryManagerTitle">
+  <header><h2 id="categoryManagerTitle">管理分类</h2><button type="button" data-category-close aria-label="关闭分类管理">×</button></header>
+  <p>按你的习惯命名和排序。已有记忆会保留在原分类。</p>
+  <div data-category-list></div>
+  <form data-category-add><input name="label" placeholder="新分类名称" aria-label="新分类名称" maxlength="24" required autocomplete="off"><button type="submit">新增分类</button></form>
+  <p data-category-status role="alert" hidden></p>
+</dialog>
+<noscript>请启用 JavaScript 以浏览个人记录。</noscript>
+<script type="module" src="./static/personal.mjs"></script>
+</body></html>

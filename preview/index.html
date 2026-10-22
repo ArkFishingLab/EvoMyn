@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>中文圆屏 · 界面预览</title>
+<style>
+:root{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#292d2b;background:#f3f2ed;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}button{font:inherit;cursor:pointer}button:focus-visible{outline:3px solid #26a481;outline-offset:4px}
+main{max-width:1120px;margin:0 auto;padding:48px 40px 30px}.eyebrow{font-size:12px;letter-spacing:2px;color:#69766f;margin-bottom:12px}
+h1{font-size:32px;font-weight:550;letter-spacing:-1px;margin:0 0 12px}.intro{font-size:14px;color:#757b77;line-height:1.8;margin:0}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:56px;align-items:center;margin-top:38px}
+.stage{position:relative;min-width:0;min-height:0;width:100%;max-width:550px;margin:auto;aspect-ratio:1;display:flex;align-items:center;justify-content:center}
+.device{position:relative;width:508px;height:508px;flex-shrink:0;border-radius:50%;padding:21px;background:linear-gradient(135deg,#d9dbd7 0,#878e88 26%,#d7dad7 51%,#848b86 75%,#e5e6e1 100%);box-shadow:0 25px 38px -22px #3c443a75,inset 0 0 0 1px #8c958d;transform:scale(var(--scale,1))}
+.device:after{content:"";position:absolute;right:0;top:150px;width:7px;height:40px;background:linear-gradient(#959b96,#d8dbd5,#7c837c);transform:rotate(-20deg);border-radius:3px;z-index:-1}
+.screen{position:relative;width:466px;height:466px;background:#090f0e;color:#f3f6f2;border-radius:50%;overflow:hidden;box-shadow:0 0 0 5px #1b2220;touch-action:pan-y}
+.screen:after{content:"";position:absolute;inset:14px;border-radius:50%;border:1px dashed #c1f3bc80;display:none;pointer-events:none;z-index:20}.screen.safe:after{display:block}
+.view{position:absolute;inset:0;filter:brightness(var(--display-brightness,1))}.hidden{display:none!important}.usb{position:absolute;top:29px;left:195px;width:76px;text-align:center;font-size:12px;color:#82958c;letter-spacing:2px}
+.clock{position:absolute;top:53px;left:133px;width:200px;text-align:center;font-family:"Bahnschrift","DIN Alternate",sans-serif;font-weight:400;font-variant-numeric:tabular-nums;font-size:44px;line-height:54px;letter-spacing:1px}
+.home-label{position:absolute;top:113px;left:133px;width:200px;text-align:center;color:#8d9f94;font-size:15px;letter-spacing:4px}
+.app{position:absolute;background:#16211e;border:1px solid #29372f;border-radius:28px;color:#eff4ed;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:11px;padding:14px 0 12px;transition:background .18s,transform .18s}
+.app:hover{background:#20312a}.app:active{transform:scale(.95)}.app svg{width:32px;height:32px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}.app span{font-size:19px;letter-spacing:1px}
+.app[data-app=chat]{color:#c9efc4}.app[data-app=weather]{color:#e7d7a5}.app[data-app=settings]{color:#d3c6e8}.app span{color:#ecf1eb}
+.home-bottom{position:absolute;top:403px;left:163px;width:140px;height:30px;text-align:center;font-size:12px;color:#6f8378;line-height:30px}
+.page-title{position:absolute;top:65px;left:108px;width:250px;text-align:center;font-size:26px;font-weight:500;letter-spacing:3px;margin:0;line-height:40px}
+.subtitle{position:absolute;top:108px;left:108px;width:250px;text-align:center;font-size:13px;color:#85988c;line-height:20px}
+.content{position:absolute;top:145px;left:83px;width:300px;height:224px}.back{position:absolute;top:398px;left:175px;width:116px;height:42px;background:#1c2d25;border:1px solid #354b3a;border-radius:24px;color:#c9efc4;font-size:16px}
+.caption{position:absolute;left:108px;top:371px;width:250px;text-align:center;font-size:12px;color:#718278;line-height:18px}
+.bubble{padding:15px 18px;border-radius:20px;line-height:1.65;font-size:18px;max-width:264px;margin:0 0 16px;background:#192720;color:#dde8dd}.bubble.self{margin-left:36px;background:#c9efc4;color:#17251c}
+.weather-top{display:flex;align-items:center;justify-content:center;gap:16px;padding:8px 0 18px}.sun{width:66px;height:66px;fill:none;stroke:#e7d7a5;stroke-width:2}.temp{font-family:Bahnschrift,sans-serif;font-size:68px;line-height:1;color:#f2ecd5}.condition{text-align:center;font-size:19px;color:#cbd4c8}.weather-stats{display:flex;justify-content:center;gap:32px;margin-top:28px}.weather-stat{text-align:center;font-size:18px}.weather-stat small{display:block;color:#82978b;font-size:13px;margin-bottom:7px}
+aside{border-top:1px solid #cdd3cb;padding-top:22px}aside .tag{display:inline-block;border:1px solid #aebfaf;color:#46634f;border-radius:20px;padding:5px 10px;font-size:11px;letter-spacing:1px}h2{font-size:20px;font-weight:500;margin:18px 0 12px}.notes{font-size:13px;color:#68746b;line-height:1.9}.spec{font-family:Bahnschrift,sans-serif;font-size:28px;color:#344a3b;margin:20px 0 4px}.small{font-size:12px;color:#849087;line-height:1.8}.controls{margin-top:26px;display:flex;gap:8px;flex-wrap:wrap}.controls button{font-size:12px;padding:9px 12px;border:1px solid #bdc9bb;border-radius:6px;background:transparent;color:#455849}.controls button[aria-pressed=true]{background:#dce8d6;border-color:#8ba681}
+.status{font-size:13px;color:#576a5a;min-height:24px;margin-top:12px;line-height:1.7}.footnote{font-size:12px;color:#7c867f;border-top:1px solid #d6dbd1;margin-top:34px;padding-top:18px;line-height:1.9}
+@media(max-width:800px){main{padding:26px 18px}.workspace{grid-template-columns:minmax(0,1fr);gap:22px;margin-top:15px}.stage{max-width:520px}h1{font-size:26px}aside{max-width:510px;margin:auto;width:100%}.controls{margin-top:12px}.spec{font-size:24px;margin-top:15px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.settings-content{top:112px;display:grid;grid-template-rows:48px 48px 72px 72px;gap:10px;height:270px}
+.agent-code{position:absolute;left:83px;top:176px;width:300px;height:48px;text-align:center;font:40px/48px Bahnschrift,sans-serif;letter-spacing:6px;color:#c9efc4}.agent-hint{position:absolute;top:240px;left:83px;width:300px;text-align:center;font-size:18px;line-height:1.65;color:#a6b9aa}.agent-note{position:absolute;top:345px;left:108px;width:250px;text-align:center;font-size:12px;color:#718278}
+.setting-row,.slider-card{width:300px;border:1px solid #293c31;background:#16231c;border-radius:19px;color:#eff4ed}
+.setting-row{padding:0 18px;display:flex;align-items:center;justify-content:space-between;text-align:left;font-size:19px}
+.row-summary{display:flex;align-items:center;gap:8px;color:#9fb8a5;font-size:13px}.chevron{font-size:25px;color:#c9efc4}
+.slider-card{padding:9px 18px 3px}.slider-label{display:flex;justify-content:space-between;align-items:center;font-size:18px;line-height:22px}.slider-label output{font-family:Bahnschrift,sans-serif;color:#c9efc4;font-size:20px}
+.slider-card input{display:block;width:100%;height:32px;margin:4px 0 0;accent-color:#c9efc4;cursor:pointer}.slider-card input:focus-visible{outline:2px solid #c9efc4;outline-offset:2px;border-radius:12px}
+.wifi-content{display:grid;grid-template-rows:56px 60px 60px;gap:9px;height:194px}.wifi-power{display:flex;justify-content:space-between;align-items:center;font-size:18px;padding:0 14px}
+.wifi-power small{font-size:12px;color:#93aa9a;margin-left:8px}.wifi-switch{position:relative;border:1px solid #3e5145;border-radius:22px;width:56px;height:34px;background:#26372c;padding:0}.wifi-switch:before{content:'';position:absolute;left:4px;top:4px;width:24px;height:24px;border-radius:50%;background:#98a99d;transition:transform .15s}.wifi-switch[aria-checked=true]{background:#bfe5b6;border-color:#bfe5b6}.wifi-switch[aria-checked=true]:before{background:#1d3a25;transform:translateX(22px)}
+.network{font-size:17px}.network-name small{display:block;font-size:11px;color:#8ea795;margin-top:3px}.network-mark{color:#c9efc4;font-size:24px}.network[aria-pressed=true]{border-color:#a5d29a;background:#243c29}.network:disabled{opacity:.35;cursor:default}
+</style>
+<main>
+ <div class="eyebrow">ESP32-S3 · 1.75 英寸 AMOLED</div>
+ <h1>中文圆屏界面</h1>
+ <p class="intro">语音、天气与设置，按圆屏重新安排每一次操作。</p>
+ <div class="workspace">
+  <div class="stage" id="stage"><div class="device" id="device"><div class="screen" id="screen" aria-label="466 像素圆屏预览">
+   <section class="view" id="home" aria-label="应用首页">
+    <div class="usb">USB</div><div class="clock" id="clock">12:00</div><div class="home-label">应 用</div>
+    <button class="app" data-app="chat" aria-label="预览语音对话页面"><svg viewBox="0 0 32 32"><path d="M7 6h18a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H15l-7 5v-5H7a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z"/><path d="M11 13v5m5-8v11m5-8v5"/></svg><span>语音对话</span></button>
+    <button class="app" data-app="weather" aria-label="预览天气页面"><svg viewBox="0 0 32 32"><circle cx="12" cy="12" r="5"/><path d="M12 2v2M2 12h2M5 5l1.5 1.5M20 4l-1.5 2M21 12h2M7 19l-2 2M11 27a5 5 0 1 1 1-10 7 7 0 0 1 13 3 3.5 3.5 0 0 1 0 7Z"/></svg><span>天气</span></button>
+    <button class="app" data-app="settings" aria-label="预览设置页面"><svg viewBox="0 0 32 32"><path d="m12 4 1 4a9 9 0 0 1 6 0l1-4 4 3-2 3a9 9 0 0 1 3 5l4 1-2 5-4-1a9 9 0 0 1-4 3l-1 5h-5l-1-5a9 9 0 0 1-4-3l-4 1-2-5 4-1a9 9 0 0 1 3-5L8 7l4-3Z"/><circle cx="16" cy="16" r="4"/></svg><span>设置</span></button>
+    <div class="home-bottom">轻触图标打开</div>
+   </section>
+   <section class="view hidden" id="chat" aria-label="语音对话布局预览"><h2 class="page-title">语音对话</h2><div class="subtitle">对话排版示例</div><div class="content"><div class="bubble self">你好，今天过得怎么样？</div><div class="bubble">你好！很高兴见到你。<br>今天想聊些什么？</div></div><div class="caption">中文换行 · 内容安全区</div><button class="back">‹ 返回</button></section>
+   <section class="view hidden" id="weather" aria-label="天气布局预览"><h2 class="page-title">天气</h2><div class="subtitle">纽约 · 示例数据</div><div class="content"><div class="weather-top"><svg class="sun" viewBox="0 0 64 64"><circle cx="32" cy="32" r="14"/><path d="M32 3v8m0 42v8M3 32h8m42 0h8M11 11l6 6m30 30 6 6M11 53l6-6m30-30 6-6"/></svg><div class="temp">26°</div></div><div class="condition">晴间多云</div><div class="weather-stats"><div class="weather-stat"><small>湿度</small>65%</div><div class="weather-stat"><small>风速</small>24 km/h</div><div class="weather-stat"><small>降水</small>18%</div></div></div><button class="back">‹ 返回</button></section>
+   <section class="view hidden" id="settings" aria-label="设置布局预览">
+    <h2 class="page-title">设置</h2>
+    <div class="content settings-content">
+     <button class="setting-row" id="open-wifi" aria-label="打开 Wi-Fi 联网"><span>Wi-Fi 联网</span><span class="row-summary"><span id="wifi-summary">未连接</span><span class="chevron">›</span></span></button>
+     <button class="setting-row" id="open-agent" aria-label="打开配置智能体"><span>配置智能体</span><span class="row-summary"><span>小智绑定</span><span class="chevron">›</span></span></button>
+     <div class="slider-card"><div class="slider-label"><label for="volume">音量</label><output for="volume" id="volume-value">60%</output></div><input id="volume" type="range" min="0" max="100" value="60" aria-label="音量"></div>
+     <div class="slider-card"><div class="slider-label"><label for="brightness">亮度</label><output for="brightness" id="brightness-value">80%</output></div><input id="brightness" type="range" min="5" max="100" value="80" aria-label="亮度"></div>
+    </div><button class="back">‹ 返回</button>
+   </section>
+   <section class="view hidden" id="agent" aria-label="配置智能体预览">
+    <h2 class="page-title">配置智能体</h2><div class="subtitle" id="agent-status">请先连接 Wi-Fi</div>
+    <div class="agent-code" aria-label="当前没有真实验证码">------</div>
+    <div class="agent-hint">打开小智控制台添加设备<br>输入设备屏幕上的验证码<br>无需连接设备热点</div>
+    <div class="agent-note">预览不接收设备验证码，不生成示例码</div>
+    <button class="back" data-back="settings">‹ 设置</button>
+   </section>
+   <section class="view hidden" id="wifi" aria-label="Wi-Fi 联网预览">
+    <h2 class="page-title">Wi-Fi 联网</h2><div class="subtitle">模拟连接 · 2.4 GHz</div><div class="content wifi-content">
+     <div class="wifi-power"><span>无线网络<small id="wifi-state">已开启</small></span><button id="wifi-toggle" class="wifi-switch" role="switch" aria-label="无线网络开关" aria-checked="true"></button></div>
+     <button class="setting-row network" data-network="家庭网络" aria-pressed="false"><span class="network-name">家庭网络<small>示例网络</small></span><span class="network-mark">›</span></button>
+     <button class="setting-row network" data-network="手机热点" aria-pressed="false"><span class="network-name">手机热点<small>示例网络</small></span><span class="network-mark">›</span></button>
+    </div><div class="caption" id="network-state" role="status">选择示例网络，体验连接流程</div><button class="back" data-back="settings">‹ 设置</button>
+   </section>
+  </div></div></div>
+  <aside><span class="tag">交互布局预览</span><h2>给圆屏留出呼吸</h2><p class="notes">Wi-Fi 联网与配置智能体分别打开：先连接路由器，再根据屏幕验证码绑定小智。亮度滑块会改变预览明暗，数值保存在当前浏览器。</p><div class="spec">466 × 466</div><div class="small">按设备像素设计 · 14 px 圆形安全边距<br>预览时间来自电脑本地时间</div><div class="controls"><button id="safe-toggle" aria-pressed="false">显示安全边界</button><button id="home-button">返回首页</button></div><div class="status" id="status" role="status">点击屏幕图标，查看中文页面。</div></aside>
+ </div>
+ <div class="footnote">当前为本地交互预览：联网为模拟流程，音量仅保存数值，亮度仅改变预览。预览不与设备通信；真实验证码只在设备联网后显示。</div>
+</main>
+<script type="module" src="./app.mjs"></script>
+</html>

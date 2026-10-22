@@ -1,0 +1,110 @@
+/* Desktop-scoped authored selectors override the standalone page theme. */
+:root:root{--paper:var(--surface);--sidebar:var(--surface);--panel:var(--surface);--panel2:var(--hover);--text:var(--ink);--accent:var(--ink);--accent2:var(--ink);--soft:#555550;--line2:#ddddd7;--font-body:var(--font-ui);--font-heading:var(--font-ui);--font-brand-serif:var(--font-ui)}
+html body{background:var(--surface);font-size:13px;-webkit-font-smoothing:antialiased}
+html body ::-webkit-scrollbar{width:10px;height:10px}
+html body ::-webkit-scrollbar-thumb{background:#cfcfca;border:3px solid transparent;background-clip:padding-box;border-radius:10px}
+html body ::-webkit-scrollbar-track{background:transparent}
+html body .sidebar .brand,html body .sidebar .mobile-topbar{display:none!important}
+html body .primary-nav a{display:none!important}
+html body .planner-sidebar{display:none!important}
+html body .shell:has(.planner-sidebar){grid-template-columns:minmax(0,1fr)}
+html body .shell:has(.archive-sidebar){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 1fr;min-height:100vh;max-width:900px;margin:auto}
+html body .shell:has(.archive-sidebar) .workspace{display:contents}
+html body .archive-sidebar{grid-row:2;position:relative;top:auto;height:auto;padding:0 40px 22px;background:white;border:0}
+html body .archive-sidebar .sidebar-menu{display:flex;flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap}
+html body .archive-sidebar .primary-nav{margin:0;order:3}
+html body .archive-sidebar .primary-nav:has(a[href="/memory/planner/"]){width:100%;border-top:1px solid var(--line-soft);padding-top:10px}
+html body .archive-sidebar .primary-nav a[href="/memory/planner/"]{display:inline-flex!important;font-size:12px;min-height:30px;padding:5px 10px;background:var(--surface-soft)}
+html body .archive-sidebar #categoryNav{display:flex;gap:2px;flex-wrap:wrap;order:1}
+html body .archive-sidebar #categoryNav button{font-size:12px;gap:5px;padding:7px 9px;border-radius:7px;color:var(--muted);white-space:nowrap;line-height:1.5}
+html body .archive-sidebar #categoryNav button.active{color:var(--ink);background:#efefeb}
+html body .archive-sidebar #categoryNav button:hover{background:var(--hover);color:var(--ink)}
+html body .archive-sidebar #categoryNav .nav-count{font-size:10px;color:var(--faint);margin-left:1px}
+html body .archive-sidebar #manageCategories{order:2;margin:0;padding:7px 8px;font-size:11px;white-space:nowrap}
+html body .category-dialog{font-family:var(--font-ui);background:var(--surface);color:var(--ink)}
+html body .archive-sidebar .menu-search{order:2;display:flex;align-items:center;width:155px;margin:0 0 0 auto;border:1px solid var(--line);border-radius:8px;background:#fafaf8;padding:0 8px}
+html body .archive-sidebar .menu-search input{padding:7px 0;font-size:11px;min-width:0}
+html body .archive-sidebar .menu-search>span{font-size:15px;padding-right:0}
+html body .hero{grid-row:1;padding:32px 40px 24px!important;gap:20px;align-items:center}
+html body .workspace{width:100%;max-width:900px;margin:0 auto}
+html body .workspace>main{grid-row:3;padding:0 40px 32px!important}
+html body h1{font-size:23px!important;line-height:1.45!important;font-weight:600;letter-spacing:-.45px}
+html body .hero-side{gap:16px}
+html body .date-label{font-size:11px;color:var(--faint)}
+html body .archive-status{font-size:11px}
+html body .total-count{font-size:12px}
+html body .title-line{gap:10px}
+html body #desktopControlHint{font-size:12px;color:var(--muted);margin:0 0 24px;line-height:1.8}
+html body #desktopControlHint a{margin-left:10px;color:#555550;text-decoration:none}
+html body #desktopControlHint a:hover{text-decoration:underline;text-underline-offset:4px}
+html body .service-summary{display:none!important}
+html body .memory-grid{border-top:0}
+html body .item{padding:17px 12px;border:0;border-bottom:1px solid var(--line-soft);border-radius:8px;text-align:left}
+html body .item:hover{background:var(--hover);border-color:var(--line-soft)}
+html body .item-title{font-size:13px;font-weight:500;line-height:1.8}
+html body .item-side{font-size:11px;gap:18px}
+html body .state-card,html body .empty{font-size:12px;color:var(--muted);padding:45px 12px}
+html body .section-head h2{font-size:13px;font-weight:600}
+html body .section-head{margin:26px 0 16px}
+html body .toolbar{padding:0 0 18px;border:0;margin-bottom:14px}
+html body .date-range input{font-size:11px;border-radius:7px;border-color:var(--line);background:var(--surface-soft)}
+html body .ability-tabs{display:inline-flex;gap:2px;background:#f2f2ef;border:0;border-radius:9px;padding:3px;margin-bottom:24px}
+html body .ability-tabs button{font-size:12px;border:0!important;border-radius:7px;padding:7px 15px;background:transparent;color:var(--muted);line-height:1.5}
+html body .ability-tabs button[aria-selected=true]{background:white;color:var(--ink);box-shadow:0 1px 3px #0000000b}
+html body .service-actions>button{font-size:12px;border-radius:8px}
+html body .package-row{padding:20px 0 19px;border-color:var(--line-soft)}
+html body .package-copy h3{font-size:14px;font-weight:500}
+html body .package-copy p{font-size:12px;line-height:1.8;color:var(--muted)}
+html body .package-source,html body .package-tools summary{font-size:11px;color:var(--faint)}
+html body .package-switch{height:20px;width:32px}
+html body .package-switch .switch-knob{width:14px;height:14px}
+html body .package-switch[aria-checked=true]{background:#30302e}
+html body .package-control{gap:10px}
+html body .package-label,html body .package-detail{font-size:11px}
+html body .package-tools{margin-top:12px}
+html body .activity{margin-top:28px}
+html body .activity th{font-size:11px;font-weight:500}
+html body .activity td{font-size:12px}
+html body .activity .section-head>span{font-size:11px}
+html body .catalog-grid{gap:14px}
+html body .ability-card{padding:21px;border:1px solid var(--line);border-radius:12px}
+html body .ability-card h2{font-size:15px;font-weight:500;margin-bottom:8px}
+html body .card-top{margin-bottom:20px}
+html body .ability-mark{font-size:22px}
+html body .card-description{font-size:12px;line-height:1.8;margin-bottom:20px}
+html body .card-footer{margin-top:18px}
+html body .card-footer button{border-radius:8px;font-size:12px}
+html body .card-source{font-size:10px}
+html body .market-toolbar{margin:3px 0 22px}
+html body .search-box input{border:1px solid var(--line);padding:8px 12px;border-radius:8px;font-size:12px;background:#fafaf8}
+html body .market-toolbar a{font-size:11px}
+html body .tool-list span{border-radius:5px}
+html body .drawer,html body dialog{border-radius:12px;border-color:var(--line);box-shadow:0 12px 50px #24242314}
+html body .drawer-title{font-size:23px!important;font-weight:600}
+html body .detail-content{font-size:13px;line-height:1.9}
+html body .backup-card{border-radius:10px}
+@media(max-width:1000px){html body .hero{padding:30px 30px 22px!important}
+html body .workspace>main{padding:0 30px 30px!important}
+html body .archive-sidebar{padding:0 30px 20px}
+html body .archive-sidebar .sidebar-menu{gap:9px}
+html body .archive-sidebar .menu-search{width:142px}
+html body .archive-sidebar #categoryNav button{padding-inline:7px;gap:4px}
+html body .date-label{display:none}
+html body .catalog-grid{grid-template-columns:1fr 1fr}
+}
+@media(prefers-reduced-motion:reduce){html body *,html body *::before,html body *::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}
+
+
+html::-webkit-scrollbar{width:10px;height:10px}html::-webkit-scrollbar-thumb{background:#cfcfca;border:3px solid transparent;background-clip:padding-box;border-radius:10px}html::-webkit-scrollbar-track{background:transparent}
+
+/* Match the native canvas spacing, not the narrower embedded viewport's breakpoint. */
+html:root{scrollbar-gutter:stable}
+html body .hero{padding:var(--desktop-page-top,32px) var(--desktop-page-x,40px) 24px!important;align-items:flex-start}
+html body .workspace>main{padding:0 var(--desktop-page-x,40px) 32px!important}
+html body .archive-sidebar{padding:0 var(--desktop-page-x,40px) 22px}
+html body .shell:has(.planner-sidebar) .hero{padding-bottom:7px!important}
+html body #desktopControlHint{font-size:13px;line-height:1.7;margin:0 0 32px}
+html body .ability-tabs{display:flex;width:max-content}
+html body .packages>.section-head{margin-top:0}
+html body .hero .refresh-button{width:28px;height:28px;display:grid;place-items:center;padding:0!important;font-size:20px;line-height:1}

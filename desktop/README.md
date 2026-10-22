@@ -1,0 +1,75 @@
+# EvoMyn · Windows 桌面应用
+
+安装 `EvoMyn-Setup-0.2.7-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
+
+## 使用
+
+- **记忆**：本机看板；**能力**：按功能包管理 MCP；**客户端接入**：导出本机客户端配置、按需连接小智；**应用设置**：桌面偏好、本地数据及更新。
+- **MCP 开关**：位于左侧导航底部，控制应用拥有的执行进程。关闭后，已连接的客户端也不能继续调用工具，看板仍可访问。
+- **小智云端连接**：单独控制云连接；同时需要 MCP 总开关开启。Codex、Claude 使用本机 stdio 转发，不需要云端连接。
+- MCP 无需绑定小智即可使用。开启“小智连接”时才检查接入点，缺少时打开引导，说明控制台获取步骤；保存后连接，实际连通才显示已连接。取消或输错不会停止本地 MCP。暂停小智也会保留本地服务。
+- 关闭窗口后保留托盘服务；托盘菜单或设置中的「退出」会停止后台。重复启动会打开已有窗口。
+- 在「客户端接入」中导出 Codex TOML 或 Claude JSON，将其中配置合并到对应客户端。配置绑定本机安装位置，换电脑后重新导出。应用退出后，客户端需在应用重新开启后重新连接。
+
+普通安装的数据位于 `%LOCALAPPDATA%\PersonalMemory\service\`：数据库是 `state\data\mnemosyne.db`，小智凭证是私有 `app\.env`。设置中的「打开数据目录」可直达数据库目录。安装代码、更新缓存与用户数据分开；升级及卸载默认保留用户数据。桌面版本创建自己的数据库，不自动搬移源码启动器的已有记录。需要搬移时先使用原服务的备份功能，保留原库，避免复制正在写入的 SQLite 文件。
+
+源码 `Start.cmd` 是另一种运行方式。它的独立 stdio 进程不受桌面开关控制；使用桌面版本时，应停用旧入口并换成桌面应用导出的客户端配置。
+
+### 0.2.5 名称升级兼容
+
+产品名称、可执行文件、快捷方式与安装包统一为 EvoMyn。保留 `com.personal-memory.desktop` 安装 ID、`%LOCALAPPDATA%\PersonalMemory` 数据目录与现有更新公钥，使升级继续使用原记录和配置。首次启动新程序时，仅迁移同一安装目录下旧程序的用户级开机启动项，并保留 Windows 中的禁用状态；隔离测试不读写正式启动项。
+
+新导出的配置使用 `mcp_servers.evomyn` / `mcpServers.evomyn`。旧客户端配置的 Python、服务地址和脚本路径继续兼容；如需更换显示名称，请用新导出的条目替换旧 `personal-memory` 条目，不要同时保留两个相同服务。源码目录、环境变量、内部健康标识及备份格式保留原标识，第三方 Mnemosyne 来源名称不变。
+
+## 应用内更新
+
+设置 → 应用更新，支持 HTTPS 检查、下载、进度和「重启并安装」。更新说明使用发布者的 Ed25519 密钥签名，安装前再次校验文件大小和 SHA-256，并确认服务及登记的客户端转发进程退出。签名不符、降级或进程未退出时不会安装。
+
+0.2.7 起默认内置 `https://github.com/clover-Saber/EvoMyn/releases/latest/download/latest.json`，用户无需配置更新来源。已有空地址或无效旧地址会回到此默认源；有效的自定义 HTTPS 地址继续保留。在高级「更新来源」中清空并保存可恢复默认。0.2.6 及更早版本需要一次性填入上述地址，之后即可在应用内升级，不需要手动下载安装程序。
+
+发布文件位于 [GitHub Releases](https://github.com/clover-Saber/EvoMyn/releases/latest)，记录、配置和数据库仍在本机。也可选择签名说明及对应 EXE 导入离线更新。更新签名与 Windows Authenticode 是两种机制；当前安装包没有 Windows 发布者证书，Windows 可能显示未识别发布者。
+
+## 构建
+
+在 Windows x64 上使用 Python 3.11、Node.js 22+ 和 uv 0.10.7。建议新建干净虚拟环境，避免混入本机工具。以下从仓库根目录执行：
+
+```powershell
+uv venv --python 3.11 .venv-desktop
+uv pip install --python .venv-desktop/Scripts/python.exe -r server/personal-memory/requirements.txt
+./.venv-desktop/Scripts/python.exe -X utf8 desktop/scripts/stage-runtime.py
+cd desktop
+npm ci
+npm test
+npm run dist
+```
+
+输出：`desktop/dist/EvoMyn-Setup-0.2.7-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
+
+## 发布更新
+
+首次独立 fork 需要生成自己的发布密钥。在发布任何安装包之前，移走 fork 中的 `update-trust.json` 后运行 `node scripts/release-update.cjs --init-key`。已经发布的应用必须继续使用原来的密钥；丢失密钥无法向原客户端发布受信更新。
+
+```powershell
+# desktop/ 内；使用当前已备份的发布密钥签名
+node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.7-x64.exe --version 0.2.7 --url https://github.com/clover-Saber/EvoMyn/releases/download/v0.2.7/EvoMyn-Setup-0.2.7-x64.exe --output dist/latest.json
+gh release create v0.2.7 dist/EvoMyn-Setup-0.2.7-x64.exe dist/latest.json --repo clover-Saber/EvoMyn --target main --title "EvoMyn 0.2.7" --notes "内置 GitHub 更新源，支持自定义记忆分类。" --draft
+# 确认附件齐全后发布
+gh release edit v0.2.7 --repo clover-Saber/EvoMyn --draft=false --latest
+```
+
+后续发布应同时更新版本号、版本标签、安装包名称和签名说明中的版本专属下载地址。每个正式 Release 均附同名 `latest.json`，固定的 `/releases/latest/download/latest.json` 会指向最新正式版本。先创建草稿并上传全部文件，检查后再发布，避免用户读取不完整版本。省略 `--url` 仍可生成离线说明。
+
+私钥默认 `.local/desktop-release/update-key.pem`（仓库根目录下），仅本机保存并单独备份，不上传 GitHub。公开的 `update-trust.json` 只有公钥。Fork 发布者还需要将 `desktop/update-source.cjs` 的默认源改为自己的仓库。保持旧版本附件可下载，不能仅替换安装包而不重新签名。
+
+## 验证与目录
+
+```powershell
+# 仓库根目录；解释器需具备上面的依赖
+python -X utf8 -m unittest discover -s desktop/tests -p "test_*.py"
+node --test desktop/tests/*.test.cjs
+```
+
+`backend/` 管理真实 MCP 执行与进程所有权；`main.cjs` 管理窗口、隔离的看板、托盘和权限；`updater.cjs` 校验更新；`ui/` 是桌面设置界面；`scripts/` 负责可复现的运行时准备和签名。MCP 与看板业务的权威源码仍在 `server/personal-memory/`。圆盘烧录源码与构建说明位于 `xiaozhi-firmware/` 和 `docs/round-open-source.md`，不随桌面更新自动烧录。
+
+安装包保留 CPython、Electron/Chromium、各 Python 发行版的许可证；`uv` 使用 MIT 或 Apache-2.0 双许可证，文本在 `assets/licenses/` 与安装后的 `resources/backend/tools/`。项目自身许可见根目录 `LICENSE`。
+

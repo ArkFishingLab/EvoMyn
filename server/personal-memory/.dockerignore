@@ -1,0 +1,7 @@
+models/
+state/
+.env
+backup-state/
+backup-config/
+*.tar*
+__pycache__/

@@ -1,0 +1,6 @@
+.env
+state/
+models/
+backup-state/
+backup-config/
+__pycache__/

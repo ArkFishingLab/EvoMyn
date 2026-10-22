@@ -1,0 +1,9 @@
+{
+  "project": "wysie/mnemosyne-dashboard",
+  "repository": "https://github.com/wysie/mnemosyne-dashboard",
+  "commit": "ea3fda256fcd5deef8b91691daff52195005f5f0",
+  "acquired": "2026-10-14",
+  "license": "MIT",
+  "original_files_verified": ["dashboard_core.py", "static/index.html", "static/style.css", "static/app.js", "LICENSE"],
+  "adaptation": "Personal five-category read-only viewer. Original source files preserved; active additions are personal.html, personal.mjs, personal-native.css, personal-shared.mjs. Original style.css and local brand-fonts.css supply the visual system."
+}

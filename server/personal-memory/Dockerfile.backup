@@ -1,0 +1,14 @@
+FROM debian:bookworm-slim
+RUN printf 'deb http://mirrors.aliyun.com/debian bookworm main\ndeb http://mirrors.aliyun.com/debian bookworm-updates main\ndeb http://mirrors.aliyun.com/debian-security bookworm-security main\n' > /etc/apt/sources.list \
+    && rm -f /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Retries=2 update \
+    && apt-get install -y --no-install-recommends python3 python3-cryptography ca-certificates \
+    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin memorybackup \
+    && rm -rf /var/lib/apt/lists/*
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+WORKDIR /app
+COPY vendor/backup_bundle.py vendor/backup_github.py vendor/backup_manager.py vendor/backup_server.py vendor/restore_backup.py /app/
+# Source and private deployment-config snapshot belong to the service UID.
+# No capabilities, Docker socket, writable source mount or host shell is provided.
+USER 10001:10001
+ENTRYPOINT ["python3", "/app/backup_server.py"]

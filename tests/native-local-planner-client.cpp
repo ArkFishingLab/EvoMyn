@@ -1,0 +1,179 @@
+#include "planner_client.h"
+#include "planner_wire.h"
+#include <cJSON.h>
+#include <cassert>
+#include <cstring>
+#include <ctime>
+#include <freertos/task.h>
+#include <iostream>
+#include <map>
+#include <nvs.h>
+#include <stdexcept>
+using namespace round_voice;
+namespace {
+std::map<std::string, std::string> durable, staged;
+bool fail_commit = false;
+TaskFunction_t worker;
+void *worker_arg;
+struct EndIteration {};
+void Run() {
+  try {
+    worker(worker_arg);
+  } catch (const EndIteration &) {
+  }
+}
+bool Flag(const std::string &raw, const char *name) {
+  auto root = cJSON_Parse(raw.c_str());
+  assert(root);
+  const auto flag = cJSON_IsTrue(cJSON_GetObjectItem(root, name));
+  cJSON_Delete(root);
+  return flag;
+}
+} // namespace
+int xTaskCreate(TaskFunction_t f, const char *, unsigned, void *arg, int,
+                void *) {
+  worker = f;
+  worker_arg = arg;
+  return pdPASS;
+}
+void vTaskDelay(unsigned) { throw EndIteration{}; }
+uint32_t esp_random() {
+  static uint32_t value = 123;
+  return ++value;
+}
+int esp_read_mac(uint8_t *mac, int) {
+  const uint8_t value[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+  memcpy(mac, value, 6);
+  return 0;
+}
+int nvs_open(const char *, int mode, nvs_handle_t *h) {
+  *h = 1;
+  return mode == NVS_READONLY && durable.empty() ? ESP_ERR_NVS_NOT_FOUND
+                                                 : ESP_OK;
+}
+int nvs_get_blob(nvs_handle_t, const char *key, void *out, size_t *size) {
+  auto it = durable.find(key);
+  if (it == durable.end())
+    return ESP_ERR_NVS_NOT_FOUND;
+  if (out)
+    memcpy(out, it->second.data(), it->second.size());
+  *size = it->second.size();
+  return ESP_OK;
+}
+int nvs_set_blob(nvs_handle_t, const char *key, const void *raw, size_t size) {
+  staged[key] = std::string(static_cast<const char *>(raw), size);
+  return ESP_OK;
+}
+int nvs_commit(nvs_handle_t) {
+  if (fail_commit)
+    return -1;
+  for (const auto &x : staged)
+    durable[x.first] = x.second;
+  return ESP_OK;
+}
+void nvs_close(nvs_handle_t) { staged.clear(); }
+
+int main() {
+  int notifications = 0;
+  PlannerClient client;
+  client.Start([&] { ++notifications; }, {});
+  Run();
+  assert(client.View().configured && client.View().cached &&
+         client.View().online);
+  assert(Flag(client.GetContext(), "time_valid"));
+  const auto now = time(nullptr);
+  LocalPlannerRequest request{
+      "create-1", "create",
+      "",         "",
+      0,          {"", "One", "text", "task", "pending", 0, now + 3600, "none"},
+      ""};
+  assert(Flag(client.Submit(request), "queued") &&
+         !Flag(client.Submit(request), "saved"));
+  assert(client.View().snapshot.tasks.empty());
+  Run();
+  assert(Flag(client.Submit(request), "saved") &&
+         client.View().snapshot.tasks.size() == 1);
+  const auto task = client.View().snapshot.tasks.front();
+  assert(task.id == "local-create-1" && notifications > 1);
+  // A failed durable commit rolls back the entire model and never reports
+  // saved.
+  fail_commit = true;
+  auto second = request;
+  second.request_id = "create-2";
+  assert(Flag(client.Submit(second), "queued"));
+  Run();
+  assert(!Flag(client.Submit(second), "saved"));
+  assert(client.View().snapshot.tasks.size() == 1);
+  assert(client.SetVolume(73));
+  Run();
+  assert(client.View().volume == 55);
+  fail_commit = false;
+  LocalPlannerRequest finish{"finish-1", "complete", task.id, "",
+                             1,          {},         "done"};
+  assert(Flag(client.Submit(finish), "queued"));
+  Run();
+  assert(Flag(client.Submit(finish), "saved"));
+  const auto journal = client.NextJournal();
+  assert(!journal.empty());
+  auto json = cJSON_Parse(journal.c_str());
+  assert(cJSON_GetArraySize(json) == 8);
+  assert(std::string(cJSON_GetObjectItem(json, "device_id")->valuestring) ==
+         "02:00:00:00:00:01");
+  const std::string event = cJSON_GetObjectItem(json, "event_id")->valuestring;
+  cJSON_Delete(json);
+  fail_commit = true;
+  assert(client.AcknowledgeJournal(event));
+  Run();
+  assert(client.NextJournal() == journal); // failed ACK cannot drop outbox
+  fail_commit = false;
+  assert(client.AcknowledgeJournal(event));
+  Run();
+  assert(client.NextJournal().empty() && client.View().snapshot.tasks.empty());
+  assert(Flag(client.Submit(finish),
+              "saved")); // ACK/task reclamation preserves receipt
+  // Reboot reads committed state, including completion receipt and alarm
+  // volume.
+  PlannerClient reboot;
+  reboot.Start({}, {});
+  Run();
+  assert(Flag(reboot.Submit(finish), "saved") && reboot.NextJournal().empty());
+  assert(reboot.SetVolume(73));
+  Run();
+  assert(reboot.View().volume == 73);
+  // Existing legacy cache must survive a failed migration verbatim.
+  durable.clear();
+  PlannerModel old;
+  PlannerSnapshot snap;
+  snap.server_time = now;
+  snap.revision = 1;
+  snap.tasks.push_back(
+      {"legacy", "Old", "", "task", "pending", 1, now + 60, "none"});
+  snap.reminders.push_back({"old-at", "legacy", "Old", 1, now + 60});
+  std::string error;
+  assert(old.Apply(snap, error));
+  assert(old.Enqueue({"cancel-old", "cancel", "legacy", "", 1, 0}, error));
+  const auto legacy = EncodePlannerCache(old);
+  durable["cache"] = legacy;
+  fail_commit = true;
+  PlannerClient migration;
+  migration.Start({}, {});
+  Run();
+  assert(!migration.View().cached && durable["cache"] == legacy &&
+         !durable.count("local_v2"));
+  fail_commit = false;
+  PlannerClient recovered;
+  recovered.Start({}, {});
+  Run();
+  assert(recovered.View().cached && durable["cache"] == legacy &&
+         durable.count("local_v2"));
+  assert(recovered.View().snapshot.tasks.front().status == "cancelled");
+  // Corruption blocks new writes and protects every existing byte.
+  durable["local_v2"] = "broken";
+  PlannerClient broken;
+  broken.Start({}, {});
+  Run();
+  assert(!Flag(broken.Submit(request), "queued") && !broken.View().cached);
+  assert(!broken.Ready());
+  assert(durable["local_v2"] == "broken" && durable["cache"] == legacy);
+  std::cout << "local planner client persistence passed\n";
+}

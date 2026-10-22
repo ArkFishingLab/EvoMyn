@@ -1,0 +1,15 @@
+FROM debian:bookworm-slim
+RUN printf 'deb http://mirrors.aliyun.com/debian bookworm main\ndeb http://mirrors.aliyun.com/debian bookworm-updates main\ndeb http://mirrors.aliyun.com/debian-security bookworm-security main\n' > /etc/apt/sources.list \
+    && rm -f /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Retries=2 update \
+    && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates \
+    && python3 -m venv /venv \
+    && rm -rf /var/lib/apt/lists/*
+ENV PATH=/venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PERSONAL_ARCHIVE_HOME=/state
+WORKDIR /app
+RUN pip install --no-cache-dir --index-url https://mirrors.aliyun.com/pypi/simple/ websockets==15.0.1 \
+    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin planner
+COPY vendor/planner_store.py vendor/planner_server.py /app/
+COPY vendor/planner_web/ /app/planner_web/
+USER 10001:10001
+ENTRYPOINT ["python", "/app/planner_server.py", "--host", "0.0.0.0"]

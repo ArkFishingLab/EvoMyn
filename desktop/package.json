@@ -1,0 +1,21 @@
+{
+  "name": "evomyn-desktop",
+  "productName": "EvoMyn",
+  "version": "0.2.7",
+  "private": true,
+  "description": "EvoMyn local memory and MCP desktop application",
+  "author": "EvoMyn contributors",
+  "license": "MIT",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.cjs",
+    "pack": "electron-builder --config electron-builder.cjs --win --x64 --dir",
+    "dist": "electron-builder --config electron-builder.cjs --win nsis --x64",
+    "release:update": "node scripts/release-update.cjs"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3"
+  }
+}

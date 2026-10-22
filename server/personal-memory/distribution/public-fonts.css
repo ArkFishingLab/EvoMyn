@@ -1,0 +1,2 @@
+/* System font stack: this distribution contains no private webfonts. */
+:root{--font-body:"Segoe UI Variable","Microsoft YaHei UI","PingFang SC","Noto Sans CJK SC",sans-serif;--font-heading:var(--font-body);--font-brand-serif:var(--font-body)}

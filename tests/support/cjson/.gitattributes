@@ -1,0 +1,5 @@
+# Keep reviewed vendor bytes and SOURCE.json hashes identical on every platform.
+cJSON.c -text
+cJSON.h -text
+LICENSE -text
+SOURCE.json text eol=lf

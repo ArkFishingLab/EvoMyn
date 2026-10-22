@@ -1,0 +1,16 @@
+/* Authored visual system. Shared by the shell and its sandboxed content. */
+:root:root {
+  --surface: #ffffff;
+  --surface-soft: #f7f7f5;
+  --surface-rail: #f3f3f1;
+  --ink: #242423;
+  --muted: #6e6e6b;
+  --faint: #8b8b86;
+  --line: #e7e7e3;
+  --line-soft: #efefec;
+  --hover: #f5f5f2;
+  --selected: #e7e7e2;
+  --success: #5b7864;
+  --radius: 10px;
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+}

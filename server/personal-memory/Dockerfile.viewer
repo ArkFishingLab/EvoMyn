@@ -1,0 +1,5 @@
+FROM personal-memory:20261016
+COPY viewer/ /app/viewer/
+COPY vendor/archive_categories.py /app/archive_categories.py
+WORKDIR /app/viewer
+ENTRYPOINT ["python", "/app/viewer/server.py"]

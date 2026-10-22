@@ -1,0 +1,8 @@
+# Optional code-only upgrade after installed packages match requirements.txt.
+# Keep this base tag as the rollback image before using this build path.
+FROM personal-memory:before-planner
+COPY vendor/ /app/
+COPY smoke_mcp.py /app/smoke_mcp.py
+COPY smoke_planner_mcp.py /app/smoke_planner_mcp.py
+USER 10001:10001
+ENTRYPOINT ["python", "/app/mcp_pipe.py", "/app/mcp_server.py"]

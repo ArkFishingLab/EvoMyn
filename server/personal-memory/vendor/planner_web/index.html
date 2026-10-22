@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff">
+  <title>计划 · EvoMyn</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script>
+</head><body>
+<a class="skip-link" href="#content">跳到内容</a>
+<div class="shell">
+  <aside class="sidebar planner-sidebar" aria-label="工作空间导航">
+    <a class="brand desktop-brand" href="/memory/"><span class="brand-mark" aria-hidden="true">◧</span><span class="brand-name">EvoMyn</span></a>
+    <nav class="primary-nav" aria-label="工作空间"><a href="/memory/">记忆</a><a href="/memory/planner/" class="active" aria-current="page">计划</a><a href="/memory/mcp/">能力</a></nav>
+  </aside>
+  <div class="workspace">
+    <header class="hero">
+      <div><h1>计划</h1></div>
+      <div class="hero-side"><span id="today" class="date-label">正在读取日期…</span><button id="new" class="primary-button"><span class="plus" aria-hidden="true">＋</span>新建计划</button></div>
+    </header>
+    <main id="content" tabindex="-1">
+      <span id="planSummary" hidden></span>
+      <section class="toolbar" aria-label="筛选计划">
+        <div class="tabs"><button data-view="list" class="selected">列表</button><button data-view="day">按日</button></div>
+        <input type="date" id="day" aria-label="查看日期" hidden>
+        <select id="status" aria-label="状态筛选"><option value="pending">待完成</option><option value="completed">已完成</option><option value="cancelled">已取消</option><option value="all">所有状态</option></select>
+        <span id="listCount"></span>
+      </section>
+      <label class="search-label"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" stroke-width="1.2"/><path d="m13 13 4 4" stroke-width="1.2"/></svg><input id="search" type="search" aria-label="搜索计划" placeholder="搜索标题或内容" autocomplete="off"></label>
+      <p id="notice" role="status"></p>
+      <section id="tasks" aria-label="计划列表"></section>
+    </main>
+  </div>
+</div>
+<dialog id="editor" aria-labelledby="form-title"><form id="form">
+  <div class="dialog-head"><h2 id="form-title">新建计划</h2><button type="button" id="close" class="quiet">关闭</button></div>
+  <label>标题<input id="title" required maxlength="128" placeholder="计划名称"></label>
+  <label>补充说明<textarea id="body" rows="3" placeholder="选填"></textarea></label>
+  <div class="fields"><label>类型<select id="kind"><option value="task">待办</option><option value="event">日程</option><option value="note">便笺</option></select></label><label>重复<select id="repeat"><option value="none">不重复</option><option value="daily">每天</option><option value="weekly">每周</option></select></label></div>
+  <div class="form-section"><label>截止时间 · 北京时间<input id="due" type="datetime-local"></label><div class="time-fields"><label>日程开始<input id="start" type="datetime-local"></label><label>日程结束<input id="end" type="datetime-local"></label></div></div>
+  <label class="check"><input id="remind" type="checkbox">提醒我</label>
+  <label>提醒时刻 · 北京时间<input id="remind-at" type="datetime-local"></label>
+  <p class="muted">留空则使用日程开始或截止时间。</p>
+  <div class="form-section"><label>关联记忆<select id="archive-links" multiple size="4" aria-describedby="archive-help"></select><span id="archive-help" class="muted">可多选。</span></label></div>
+  <p id="form-error" role="alert"></p><button id="save" type="submit">保存计划</button>
+</form></dialog>
+</body></html>

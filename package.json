@@ -1,0 +1,13 @@
+{
+  "name": "evomyn-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Optional development tools for round voice assets",
+  "scripts": {
+    "icons": "node tools/generate_warm_icons.cjs",
+    "test": "node --test tests/preview-settings.test.mjs tests/round-layout.test.mjs"
+  },
+  "devDependencies": {
+    "sharp": "0.35.5"
+  }
+}
