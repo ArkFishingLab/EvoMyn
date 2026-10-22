@@ -33,10 +33,18 @@ function render(value){
  for(const id of ['show-data','export-json','export-toml'])$(id).disabled=!ready;
  const ota=s?.device_ota||{},otaTitles={unconfigured:'等待配对','no-firmware':'等待固件','invalid-config':'配对配置无效','invalid-firmware':'固件校验未通过',starting:'正在启动',ready:'可供设备更新',error:'更新服务未启动'};
  $('ota-state').textContent=otaTitles[ota.state]||'等待更新服务';
- $('ota-version').textContent=ota.version?'固件 v'+ota.version:'尚未导入固件';
+ $('ota-version').textContent=ota.version?'本机已准备 v'+ota.version:'本机尚未准备固件';
  $('ota-message').textContent=ota.message||(ready?'在下方导入设备配对和固件包。':'后台服务启动后显示设备更新状态。');
  $('ota-retry').hidden=!['invalid-config','invalid-firmware','error'].includes(ota.state);
  for(const id of ['ota-retry','ota-import-pairing','ota-import-release'])$(id).disabled=!ready||value.busy||ota.state==='starting';
+ const fw=value.firmware||{},fwBusy=['checking','downloading','activating'].includes(fw.state);
+ $('ota-latest').textContent=fw.latestVersion?'最新可下载 v'+fw.latestVersion:'最新固件尚未检查';
+ $('firmware-message').textContent=fw.message||'检查可下载的兼容固件。';
+ $('firmware-notes').textContent=fw.notes||'';$('firmware-notes').hidden=!fw.notes;
+ $('firmware-progress').hidden=fw.state!=='downloading';$('firmware-progress').value=fw.progress||0;
+ $('firmware-check').disabled=fwBusy||value.busy||u.state==='installing';
+ $('firmware-download').hidden=!fw.canDownload;$('firmware-download').disabled=fwBusy||value.busy||u.state==='installing'||!ready;
+ $('firmware-download').textContent=fw.state==='error'?'重试下载':'下载到本机';
  const titles={'not-configured':'等待配置更新来源',idle:'随时检查新版本',checking:'正在检查更新',available:'有新版本可用','up-to-date':'当前已是最新版本',downloading:'正在下载更新',ready:'更新已准备好',installing:'正在安装更新',error:'更新未完成'};
  $('update-title').textContent=titles[u.state]||'应用更新';$('update-message').textContent=u.message||'';$('update-version').textContent=u.availableVersion?'v'+u.availableVersion:'v'+value.version;
  $('release-notes').hidden=!u.notes;$('release-notes').textContent=u.notes||'';
@@ -55,6 +63,6 @@ $('connection-form').addEventListener('submit',async event=>{event.preventDefaul
 $('use-local').addEventListener('click',async()=>{try{await command('use-local');toast('已关闭小智连接，本机 MCP 继续运行');}catch{}});
 bind('toolbar-error','view',{page:'settings'});
 bind('update-check','update-check');bind('update-download','update-download');bind('update-install','update-install');bind('update-import','update-import');
- bind('ota-retry','ota-retry');bind('ota-import-pairing','ota-import-pairing');bind('ota-import-release','ota-import-release');
+ bind('firmware-check','firmware-check');bind('firmware-download','firmware-download');bind('ota-retry','ota-retry');bind('ota-import-pairing','ota-import-pairing');bind('ota-import-release','ota-import-release');
 $('save-feed').addEventListener('click',()=>command('set-update-feed',{url:$('feed').value.trim()}).then(()=>toast('更新来源已保存')).catch(()=>{}));
 api.onStatus(render);refresh();

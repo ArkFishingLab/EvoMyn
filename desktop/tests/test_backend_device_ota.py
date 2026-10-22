@@ -59,6 +59,23 @@ class DesktopDeviceOTA(unittest.TestCase):
         self.assertEqual(broken['state'], 'invalid-firmware')
         self.assertFalse(broken['running'])
 
+    def test_unpaired_firmware_version_survives_service_restart(self):
+        self.assertEqual(self.command('status')['device_ota']['state'], 'unconfigured')
+        build = self.base / 'firmware.bin'
+        build.write_bytes(firmware(version='2.5.8'))
+        release = self.base / 'release'
+        publish_release(build, release, version='2.5.8', notes='unpaired fixture')
+        status = self.command('ota-import-release', manifest=str(release / 'manifest.json'))
+        self.assertEqual(status['device_ota']['version'], '2.5.8')
+        self.assertFalse(status['device_ota']['running'])
+        self.stop()
+        self.launch()
+        ota = self.command('status')['device_ota']
+        self.assertEqual(ota['state'], 'unconfigured')
+        self.assertEqual(ota['version'], '2.5.8')
+        self.assertFalse(ota['running'])
+        self.assertFalse(ota['configured'])
+
     def test_port_conflict_is_visible_without_breaking_mcp_and_retry_recovers(self):
         source, values = pairing(self.base)
         self.command('ota-import-pairing', directory=str(source))

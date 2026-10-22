@@ -25,7 +25,7 @@ function allowedSource(value){
 function validateCommand(action,parameters){
  if(typeof action!=='string'||!parameters||typeof parameters!=='object'||Array.isArray(parameters))throw new Error('操作格式无效。');
  const keys=Object.keys(parameters).sort().join(',');
- if(['status','start-mcp','stop-mcp','show-data','update-status','update-check','update-download','update-install','update-import','preferences','quit','use-local','open-xiaozhi-console','ota-retry','ota-import-pairing','ota-import-release'].includes(action)&&keys==='')return;
+ if(['status','start-mcp','stop-mcp','show-data','update-status','update-check','update-download','update-install','update-import','preferences','quit','use-local','open-xiaozhi-console','ota-retry','ota-import-pairing','ota-import-release','firmware-check','firmware-download'].includes(action)&&keys==='')return;
  if(action==='connect-xiaozhi'&&keys==='endpoint'&&typeof parameters.endpoint==='string'&&parameters.endpoint.length<=4096)return;
  if(action==='set-cloud'&&keys==='enabled'&&typeof parameters.enabled==='boolean')return;
  if(action==='save-endpoint'&&keys==='endpoint'&&typeof parameters.endpoint==='string'&&parameters.endpoint.length<=8192)return;

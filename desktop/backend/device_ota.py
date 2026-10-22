@@ -73,21 +73,31 @@ def import_release(root, manifest_path):
 def inspect(root):
     status = {'state': 'unconfigured', 'configured': False, 'running': False,
               'version': None, 'message': '首次使用需导入设备配对配置和兼容固件包。'}
+    # Prepared firmware belongs to the desktop cache, independently of pairing.
+    # Inspect it on startup too, so an unpaired download survives an app restart.
+    release = None
+    invalid_firmware = False
+    try:
+        release = release_provider(root / 'device-updates')('/updates/manifest')
+        if release is not None:
+            status['version'] = json.loads(release[0])['version']
+    except Exception:
+        invalid_firmware = True
     try:
         config = load_config(root)
     except Exception:
         return {**status, 'state': 'invalid-config', 'message': '设备配对配置无效或证书已过期，请重新导入有效配置。'}
     if config is None:
+        if status['version']:
+            status['message'] = '固件已准备好；导入原有设备配对配置后即可提供更新。'
         return status
     status['configured'] = True
-    try:
-        release = release_provider(root / 'device-updates')('/updates/manifest')
-        if release is None:
-            return {**status, 'state': 'no-firmware', 'message': '设备已配对，请导入兼容固件包。'}
-        manifest = json.loads(release[0])
-    except Exception:
+    if invalid_firmware:
         return {**status, 'state': 'invalid-firmware', 'message': '固件校验未通过，请重新导入兼容固件包。'}
-    return {**status, 'state': 'starting', 'version': manifest['version'], 'message': '正在启动设备更新服务…'}
+    if release is None:
+        return {**status, 'state': 'no-firmware', 'message': '设备已配对，请下载或导入兼容固件包。'}
+    return {**status, 'state': 'starting', 'message': '正在启动设备更新服务…'}
+
 
 
 def create_server(root):

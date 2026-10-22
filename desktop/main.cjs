@@ -3,6 +3,7 @@ const {app,BrowserWindow,WebContentsView,Tray,Menu,ipcMain,dialog,shell,session,
 const path=require('node:path');const fs=require('node:fs');const fsp=require('node:fs/promises');const crypto=require('node:crypto');
 const {pathToFileURL}=require('node:url');
 const {ServiceClient}=require('./service-client.cjs');const {UpdateManager,httpsUrl}=require('./updater.cjs');
+const {FirmwareUpdater}=require('./firmware-updater.cjs');
 const {DEFAULT_UPDATE_FEED,resolveUpdateFeed}=require('./update-source.cjs');
 const {createUpdateTransport,createElectronFetch}=require('./update-transport.cjs');
 const {ConnectionFlow}=require('./connection-flow.cjs');
@@ -16,10 +17,10 @@ app.setName('EvoMyn');
 if(process.platform==='win32')app.setAppUserModelId('com.personal-memory.desktop');
 const shellFile=path.join(__dirname,'ui','index.html');
 const dashboardCSS=['tokens.css','dashboard.css'].map(file=>fs.readFileSync(path.join(__dirname,'ui',file),'utf8')).join('\n');
-let window,view,tray,service,updater,connection,poll,origin='',page='memory',quitting=false,busy=false,cloudStartedAt=null;
+let window,view,tray,service,updater,firmware,connection,poll,origin='',page='memory',quitting=false,busy=false,cloudStartedAt=null;
 let serviceStatus=null,errorMessage='',preferences={updateFeed:DEFAULT_UPDATE_FEED,startAtLogin:false};
 const preferenceFile=path.join(home,'preferences.json');
-function snapshot(){return {version:app.getVersion(),service:serviceStatus,update:updater?.status(),preferences:{...preferences},busy,error:errorMessage,page,cloudStartedAt};}
+function snapshot(){return {version:app.getVersion(),service:serviceStatus,update:updater?.status(),firmware:firmware?.status(),preferences:{...preferences},busy,error:errorMessage,page,cloudStartedAt};}
 function broadcast(){if(window&&!window.isDestroyed())window.webContents.send('personal-memory:status',snapshot());updateTray();}
 async function persist(){await fsp.mkdir(home,{recursive:true});const temporary=preferenceFile+'.tmp';await fsp.writeFile(temporary,JSON.stringify(preferences),{mode:0o600});await fsp.rename(temporary,preferenceFile);}
 function guard(contents){
@@ -67,11 +68,16 @@ async function perform(action,parameters={}){
  if(action==='quit'){setImmediate(quit);return true;}
  if(action==='open-xiaozhi-console'){await shell.openExternal('https://xiaozhi.me/');return true;}
  if(action==='show-data'){await shell.openPath(path.join(home,'service','state','data'));return true;}
+ if(action==='firmware-check'){if(busy)throw new Error('服务正在切换，请稍后重试。');errorMessage='';broadcast();return firmware.check();}
  if(action==='update-check')return updater.check();
  if(action==='update-download')return updater.download();
  if(action==='update-install'){
-  try{await updater.install();setImmediate(()=>{quitting=true;app.quit();});return true;}
+  if(busy||firmware?.operation)throw new Error('固件或服务操作进行中，请稍后再试。');
+  busy=true;errorMessage='';broadcast();let handedOff=false;
+  try{await updater.install();handedOff=true;setImmediate(()=>{quitting=true;app.quit();});return true;}
   catch(error){if(!service.child){try{await startService();}catch{}}throw error;}
+  // Retain the guard after successful handoff until the scheduled quit runs.
+  finally{if(!handedOff){busy=false;broadcast();}}
  }
  if(action==='set-update-feed'){const feed=parameters.url.trim()?httpsUrl(parameters.url.trim()):DEFAULT_UPDATE_FEED;updater.setFeed(feed);preferences.updateFeed=feed;await persist();broadcast();return updater.status();}
  if(action==='set-startup'){
@@ -89,7 +95,11 @@ async function perform(action,parameters={}){
  }
  if(busy)throw new Error('服务正在切换，请稍后重试。');busy=true;errorMessage='';broadcast();
  try{
-  if(action==='ota-import-pairing'||action==='ota-import-release'){
+  if(action==='firmware-download'){
+   if(!serviceStatus?.ready)throw new Error('请等待后台服务启动后再下载固件。');
+   await firmware.download();
+  }
+  else if(action==='ota-import-pairing'||action==='ota-import-release'){
    const pairing=action==='ota-import-pairing';
    const selected=await dialog.showOpenDialog(window,pairing
     ?{title:'选择原有设备配对运行目录',properties:['openDirectory']}
@@ -107,7 +117,7 @@ async function perform(action,parameters={}){
  return snapshot();
 }
 async function quit(){
- if(quitting)return;quitting=true;clearInterval(poll);updater?.cancel();
+ if(quitting)return;quitting=true;clearInterval(poll);updater?.cancel();firmware?.cancel();
  if(window&&!window.isDestroyed())window.hide();
  try{await service?.stop();}catch(error){report(error);}finally{tray?.destroy();app.quit();}
 }
@@ -119,6 +129,8 @@ async function create(){
  const trust=require('./update-trust.json');
  updater=new UpdateManager({currentVersion:app.getVersion(),publicKey:crypto.createPublicKey({key:Buffer.from(trust.publicKey,'base64'),format:'der',type:'spki'}),cacheDir:path.join(home,'updates'),transport:createUpdateTransport(createElectronFetch(net.request.bind(net))),onBeforeInstall:async()=>{clearInterval(poll);await service.stop();},feedUrl:preferences.updateFeed});
  updater.on('status',broadcast);
+ firmware=new FirmwareUpdater({publicKey:crypto.createPublicKey({key:Buffer.from(trust.publicKey,'base64'),format:'der',type:'spki'}),temporaryDir:path.join(home,'firmware-downloads'),localDir:path.join(home,'service','device-updates'),transport:createUpdateTransport(createElectronFetch(net.request.bind(net))),activate:async manifest=>{if(quitting)throw new Error('应用正在退出。');serviceStatus=await service.request('ota-import-release',{manifest});broadcast();}});
+ firmware.on('status',broadcast);
  session.defaultSession.setPermissionRequestHandler((_webContents,_permission,callback)=>callback(false));
  session.defaultSession.setPermissionCheckHandler(()=>false);
  session.defaultSession.on('will-download',(event,item,contents)=>{
@@ -321,12 +333,17 @@ async function smokeTest(){
   assert.equal(await window.webContents.executeJavaScript("document.querySelector('[id^=device-sync]')===null"),true);
   evidence.localReminders=true;
   assert.equal(await window.webContents.executeJavaScript("!!document.getElementById('ota-state')"),true);
+  assert.equal(await window.webContents.executeJavaScript("!!document.getElementById('firmware-check') && !!document.getElementById('firmware-download')"),true);
+  assert.equal(await window.webContents.executeJavaScript("!document.getElementById('ota-version').textContent.includes('已安装')"),true);
   if(process.env.PERSONAL_MEMORY_SMOKE_OTA==='1'){
    assert.equal(serviceStatus.device_ota.running,true);assert.equal(serviceStatus.device_ota.version,'2.5.7');
    assert.equal(await window.webContents.executeJavaScript("document.getElementById('ota-version').textContent.includes('2.5.7')"),true);
    evidence.deviceOTA={running:true,version:serviceStatus.device_ota.version};
   }
   await fsp.writeFile(path.join(home,'desktop-settings.png'),(await window.webContents.capturePage()).toPNG());
+  await window.webContents.executeJavaScript("document.getElementById('ota-title').scrollIntoView({block:'start'})");
+  await new Promise(resolve=>setTimeout(resolve,300));
+  await fsp.writeFile(path.join(home,'desktop-firmware-settings.png'),(await window.webContents.capturePage()).toPNG());
   await showPage('memory');await new Promise(resolve=>setTimeout(resolve,600));await fsp.writeFile(path.join(home,'desktop-dashboard.png'),(await window.capturePage()).toPNG());
   await service.stop();assert.equal(fs.existsSync(path.join(home,'service','desktop-session.json')),false);evidence.cleanShutdown=true;
   await fsp.writeFile(path.join(home,'smoke-result.json'),JSON.stringify(evidence,null,2));quitting=true;tray.destroy();app.exit(0);

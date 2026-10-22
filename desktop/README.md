@@ -1,6 +1,6 @@
 # EvoMyn · Windows 桌面应用
 
-安装 `EvoMyn-Setup-0.2.13-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
+安装 `EvoMyn-Setup-0.2.14-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
 
 ## 设备本地提醒与主动记忆
 
@@ -12,13 +12,13 @@
 
 ## ESP 设备更新
 
-应用设置 → ESP 设备更新，显示固件版本与服务状态。已配对且有有效固件时，打开应用自动启动 HTTPS 更新服务；最小化或关闭窗口至托盘后继续运行，彻底退出应用才停止。MCP 和小智连接的开关不影响设备更新。
+应用设置 → ESP 设备更新，分别显示「最新可下载」固件与「本机已准备」固件版本；后者不是设备已安装版本。点击「检查最新固件」，再点击「下载到本机」，即可准备设备更新；下载有进度提示，失败可重试。已配对且有有效固件时，打开应用自动启动 HTTPS 更新服务；最小化或关闭窗口至托盘后继续运行，彻底退出应用才停止。MCP 和小智连接的开关不影响设备更新。
 
 设备与 PC 需在同一局域网；在设备上进入「设置 → 系统更新」，检查、下载并确认重启，桌面不会主动刷写设备。PC 地址变化、端口被占用或配置无效时，设置页会提示并提供重试；若桌面显示已允许更新、设备仍访问失败，应检查同一网络及 Windows 防火墙是否允许该应用的配对端口。
 
-首次配置可在「设备更新配置」中导入原有配对运行目录，以及可信固件包里的 `manifest.json`（同目录须有对应 SHA-256 命名的 `.bin`）。没有配对信息时不会开放端口；这个入口只复用已写入设备的地址、身份与信任证书，不会给陌生设备自动配对。已有桌面配对文件会直接沿用，无需再次导入。
+首次配置可在「高级：配对与手动导入」中导入原有配对运行目录。手动导入可信固件包的 `manifest.json`（同目录须有对应 SHA-256 命名的 `.bin`）保留在高级选项。没有配对信息时不会开放端口；这个入口只复用已写入设备的地址、身份与信任证书，不会给陌生设备自动配对。已有桌面配对文件会直接沿用，无需再次导入。
 
-固件包需符合 `round-voice-175c`、ESP32-S3、`v2/32m` 分区和 `xiaozhi` 项目约定，最低 2.5.7；检查版本、镜像结构、板型标记、大小与 SHA-256 后才激活。设备也会再次校验并拒绝降级。固件缓存在 `%LOCALAPPDATA%\PersonalMemory\service\device-updates\`，升级应用后保留。桌面版本和固件版本独立编号；桌面更新不会自动下载或替换设备固件，需导入相应兼容发布包。当前维护者的私有固件不包含在公开安装包中。
+固件包需符合 `round-voice-175c`、ESP32-S3、`v2/32m` 分区和 `xiaozhi` 项目约定，最低 2.5.7；检查版本、镜像结构、板型标记、大小与 SHA-256 后才激活。设备也会再次校验并拒绝降级。固件缓存在 `%LOCALAPPDATA%\PersonalMemory\service\device-updates\`，升级应用后保留。桌面版本和固件版本独立编号；桌面更新不会自动下载或替换设备固件；在 ESP 设备更新中单独检查并下载兼容固件。下载器先验证 Ed25519 发布签名、类型、板型、版本、大小和 SHA-256，再由现有服务验证 ESP 镜像并原子激活。失败保留旧固件；拒绝替换为更旧版本，同版本缓存缺失或损坏时可重新下载。当前维护者的私有固件不包含在公开安装包中。若官方尚未发布兼容固件，设置页会提示稍后重试。
 
 ## 使用
 
@@ -68,7 +68,7 @@ npm test
 npm run dist
 ```
 
-输出：`desktop/dist/EvoMyn-Setup-0.2.13-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
+输出：`desktop/dist/EvoMyn-Setup-0.2.14-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
 
 ## 发布更新
 
@@ -76,15 +76,30 @@ npm run dist
 
 ```powershell
 # desktop/ 内；使用当前已备份的发布密钥签名
-node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.13-x64.exe --version 0.2.13 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.13/EvoMyn-Setup-0.2.13-x64.exe --output dist/latest.json
-gh release create v0.2.13 dist/EvoMyn-Setup-0.2.13-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.13" --notes "桌面自动托管 ESP 固件更新，MCP 与设备更新独立运行。" --draft
+node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.14-x64.exe --version 0.2.14 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.14/EvoMyn-Setup-0.2.14-x64.exe --output dist/latest.json
+gh release create v0.2.14 dist/EvoMyn-Setup-0.2.14-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.14" --notes "桌面自动托管 ESP 固件更新，MCP 与设备更新独立运行。" --draft
 # 确认附件齐全后发布
-gh release edit v0.2.13 --repo ArkFishingLab/EvoMyn --draft=false --latest
+gh release edit v0.2.14 --repo ArkFishingLab/EvoMyn --draft=false --latest
 ```
 
 后续发布应同时更新版本号、版本标签、安装包名称和签名说明中的版本专属下载地址。每个正式 Release 均附同名 `latest.json`，固定的 `/releases/latest/download/latest.json` 会指向最新正式版本。先创建草稿并上传全部文件，检查后再发布，避免用户读取不完整版本。省略 `--url` 仍可生成离线说明。
 
 私钥默认 `.local/desktop-release/update-key.pem`（仓库根目录下），仅本机保存并单独备份，不上传 GitHub。公开的 `update-trust.json` 只有公钥。Fork 发布者还需要将 `desktop/update-source.cjs` 的默认源改为自己的仓库。保持旧版本附件可下载，不能仅替换安装包而不重新签名。
+
+## 发布设备固件
+
+设备固件使用独立的固定签名源 `https://github.com/ArkFishingLab/EvoMyn/releases/download/firmware-stable/firmware-latest.json`，不跟随桌面应用的 latest Release。源与下载均使用系统代理、无配对凭证的 HTTPS 连接和有界流式传输。公共包必须先完成隐私、许可证与板型审查；签名不替代这些审查或硬件验收。
+
+当前维护者的私有 2.5.8 镜像包含编译时配对凭证及未获再分发许可的字体资源，不能作为公共附件上传；该签名源尚未发布公共固件。公共版本需使用许可明确的字体，并将每台设备的配对配置保存在设备自身。旧设备还需先完成配对迁移，避免安装通用固件后失去后续 OTA 连接。此处的发布命令是格式示例，不表示示例版本已可公开下载。
+
+先用 `server/personal-memory/vendor/device_updates.py` 校验应用镜像并生成本地发布目录，再签名已有 `manifest.json`：
+
+```powershell
+# desktop/ 内；不会创建或轮换密钥
+node scripts/release-firmware.cjs --manifest ../artifacts/public-firmware/manifest.json --url https://github.com/ArkFishingLab/EvoMyn/releases/download/firmware-v2.5.8/firmware-2.5.8.bin --output ../artifacts/public-firmware/firmware-latest.json
+```
+
+工具默认复用 `.local/desktop-release/update-key.pem` 并比对已安装的公钥，只输出签名说明。先发布并验证版本专属的固件附件，再将 `firmware-latest.json` 更新至 `firmware-stable` Release。固件 Release 应标记为非最新桌面版本（`--latest=false`），避免影响桌面 `/releases/latest/download/latest.json`。签名载荷有独立的 `evomyn-firmware` 类型，不能作为桌面安装包使用。检查、下载均不会命令设备安装；设备安装仍由用户在设备上确认。
 
 ## 验证与目录
 

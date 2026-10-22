@@ -55,6 +55,21 @@ class DeviceOTA(unittest.TestCase):
             import_release(self.root, str(self.release / 'manifest.json'))
         self.assertFalse((self.root / 'device-updates/manifest.json').exists())
 
+    def test_unpaired_prepared_version_survives_fresh_inspection(self):
+        from device_ota import import_release, inspect
+        (self.root / 'device-sync.json').unlink()
+        import_release(self.root, str(self.release / 'manifest.json'))
+        for _ in range(2):
+            status = inspect(self.root)
+            self.assertEqual(status['state'], 'unconfigured')
+            self.assertFalse(status['configured'])
+            self.assertFalse(status['running'])
+            self.assertEqual(status['version'], '2.5.7')
+        # Invalid pairing must not hide a valid, independently prepared cache.
+        (self.root / 'device-sync.json').write_text('{', encoding='utf-8')
+        self.assertEqual(inspect(self.root)['state'], 'invalid-config')
+        self.assertEqual(inspect(self.root)['version'], '2.5.7')
+
     def test_configuration_states_hide_credentials(self):
         from device_ota import inspect
         (self.root / 'device-sync.json').unlink()
