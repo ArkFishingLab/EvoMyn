@@ -26,4 +26,4 @@
 
 - [x] Include new modules/assets/tests in public-release and runtime manifests; update README and architecture statements that still describe the memory content as read-only.
 - [x] Run backend, viewer, desktop and source-packaging checks from `docs/development.md`; perform independent spec and quality reviews.
-- [ ] Build the next Windows release, validate isolated CRUD and update assets, commit/push and publish signed GitHub update under the standing release authorization. Never insert acceptance records into the installed database.
+- [x] Build the next Windows release, validate isolated CRUD and update assets, commit/push and publish signed GitHub update under the standing release authorization. Never insert acceptance records into the installed database.

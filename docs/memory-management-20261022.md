@@ -23,3 +23,11 @@
 - 规格与质量两轮独立审查未发现阻塞问题。
 
 固件只检查了完成回执兼容性，未修改、构建或烧录硬件。安装包、签名更新与云端 CI 的最终证据以对应 [Release](https://github.com/ArkFishingLab/EvoMyn/releases) 和 Actions 为准。
+
+## 发布验收
+
+已发布 [v0.2.10](https://github.com/ArkFishingLab/EvoMyn/releases/tag/v0.2.10)，源码提交 `072c48d` 的 [Repository checks](https://github.com/ArkFishingLab/EvoMyn/actions/runs/39756271094) 全部成功。15 个附件的远端大小与 SHA-256 均与本地交付文件一致。
+
+打包应用版本为 0.2.10，49 个后端应用文件与构建清单逐字节匹配，ASAR 中的更新源、主进程和信任公钥与维护源码一致。隔离启动通过看板、真实 MCP、总开关、客户端配置、托盘及退出检查。
+
+使用真实 Electron 更新器从新官方固定地址读取签名说明，并下载完整 179736245 字节安装包；原公钥签名、版本、平台、大小和 SHA-256 校验通过，状态到达 ready。未执行正式应用安装，也未修改用户的更新偏好或个人库。
