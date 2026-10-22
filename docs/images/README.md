@@ -1,5 +1,6 @@
 # README 图片与来源
 
+- `memory-workflow.svg`：为项目手工绘制的可编辑矢量示意图，展示 ESP 语音入口、小智云端、PC 本地 MCP 与记忆库、多个 AI 客户端之间的关系。不是产品界面截图；不包含真实记忆或配置，字体使用系统回退，不附带字体文件。
 - `desktop-connections.png`：Windows 桌面版「客户端接入」，展示本机配置导出、可选小智连接及 MCP 总开关。
 - `capability-market.png`：看板「能力商城」，展示已适配的记忆档案与世界时间。
 
