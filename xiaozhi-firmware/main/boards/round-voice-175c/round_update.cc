@@ -49,7 +49,7 @@ struct Http {
         }
     }
     bool Open(const std::string& url, const std::string& ca, const std::string& token,
-              const std::string& device, const char* accept) {
+              const std::string& device, const char* accept, bool durable_pairing) {
         esp_http_client_config_t config{};
         config.url = url.c_str();
         config.cert_pem = ca.c_str();
@@ -68,6 +68,9 @@ struct Http {
         if (esp_http_client_set_header(handle, "Authorization", authorization.c_str()) != ESP_OK ||
             esp_http_client_set_header(handle, "Device-Id", device.c_str()) != ESP_OK ||
             esp_http_client_set_header(handle, "Accept", accept) != ESP_OK)
+            return false;
+        if (durable_pairing &&
+            esp_http_client_set_header(handle, "X-EvoMyn-Pairing", "1") != ESP_OK)
             return false;
         return esp_http_client_open(handle, 0) == ESP_OK;
     }
@@ -145,7 +148,8 @@ bool VerifyPartition(const esp_partition_t* partition, const RoundUpdateManifest
 }  // namespace
 
 bool RoundUpdate::Start(const std::string& base_url, const std::string& trusted_ca,
-                        const std::string& token, const std::string& device_id, Changed changed) {
+                        const std::string& token, const std::string& device_id, Changed changed,
+                        bool durable_pairing) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (commands_)
@@ -167,6 +171,7 @@ bool RoundUpdate::Start(const std::string& base_url, const std::string& trusted_
         ca_ = trusted_ca;
         token_ = token;
         device_ = device_id;
+        durable_pairing_ = durable_pairing;
         changed_ = std::move(changed);
         view_.configured = true;
         view_.phase = RoundUpdatePhase::Idle;
@@ -189,6 +194,28 @@ RoundUpdateView RoundUpdate::View() const {
     return view_;
 }
 
+bool RoundUpdate::BeginPairing() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (pairing_pending_ || view_.busy() || view_.phase == RoundUpdatePhase::Ready)
+        return false;
+    pairing_pending_ = true;
+    return true;
+}
+
+void RoundUpdate::FinishPairing(bool restart_required) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        pairing_pending_ = restart_required;
+        if (restart_required) {
+            view_.phase = RoundUpdatePhase::Disabled;
+            view_.configured = false;
+            view_.error = "更新配置已变更，请重启设备";
+            durable_pairing_ = false;
+        }
+    }
+    Notify();
+}
+
 void RoundUpdate::Notify() {
     if (changed_)
         changed_();
@@ -207,7 +234,7 @@ void RoundUpdate::Error(const char* error) {
 bool RoundUpdate::Queue(Command command) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!commands_ || view_.busy())
+        if (!commands_ || pairing_pending_ || view_.busy())
             return false;
         if (command == Command::Install && view_.phase != RoundUpdatePhase::Available)
             return false;
@@ -256,7 +283,8 @@ void RoundUpdate::CheckNow() {
         return;
     }
     Http http;
-    if (!http.Open(base_ + "/updates/manifest", ca_, token_, device_, "application/json")) {
+    if (!http.Open(base_ + "/updates/manifest", ca_, token_, device_, "application/json",
+                   durable_pairing_)) {
         Error("无法连接更新服务");
         return;
     }
@@ -326,7 +354,8 @@ void RoundUpdate::InstallNow() {
         return;
     }
     Http http;
-    if (!http.Open(base_ + manifest.url, ca_, token_, device_, "application/octet-stream")) {
+    if (!http.Open(base_ + manifest.url, ca_, token_, device_, "application/octet-stream",
+                   durable_pairing_)) {
         Error("无法连接下载服务");
         return;
     }

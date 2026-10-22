@@ -12,8 +12,9 @@ helpers are in root `tools/`. A clean distribution instead places this firmware 
 `firmware/`, including its own `tools/`. Commands below distinguish these layouts;
 the old vendor demonstration directory is not the active firmware source.
 
-The public source export is not the production firmware binary. Its version label reflects
-the source base, not a claim that a new open-font build has been tested on hardware.
+The public source export is separate from the public firmware binary. Version 2.5.10 has
+passed a complete open-font build and native LVGL rendering checks. Physical device
+acceptance remains separate; a successful build is not a claim of hardware validation.
 No firmware image, flash dump, installed Windows font, generated Windows font subset,
 device credential, private header, local SDK state or persistent device key is included.
 The original project source and any connected device are not changed by the exporter.
@@ -121,11 +122,13 @@ are still required after font generation. No flashing command is part of these s
 
 ## Service defaults
 
-`round_services_private.h` and any other private header are excluded. The board's
-existing fallback defines `ROUND_SERVICE_BASE`, `ROUND_SERVICE_CA`,
-`ROUND_SERVICE_TOKEN` and `ROUND_SERVICE_DEVICE` as empty strings. Local reminder
-state remains on the device; LAN archive and custom update services are disabled until
-you configure your own service. The upstream XiaoZhi activation/voice service and
+`round_services_private.h` and any other private header are excluded. Public firmware
+reads its own versioned pairing record from `round_pairing/config` in NVS. An unpaired
+device has no desktop OTA service until explicitly paired over physical USB. Ordinary
+OTA preserves pairing, Wi-Fi, XiaoZhi activation and local reminders. Old private
+2.5.7/2.5.8 builds need one migration via a private 2.5.9 bridge, or USB pairing after
+upgrading; see [pairing and update instructions](https://github.com/ArkFishingLab/EvoMyn/blob/main/docs/esp-firmware-update.md) in the full
+repository. LAN completion archive upload remains retired. The upstream XiaoZhi activation/voice service and
 public Open-Meteo weather integration remain as declared in source. This package does
 not distribute access to a private server or pre-provision a device.
 

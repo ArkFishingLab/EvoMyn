@@ -37,7 +37,10 @@ public:
     using Changed = std::function<void()>;
     // Configuration is immutable for the boot. Calls enqueue bounded work, never network I/O.
     bool Start(const std::string& base_url, const std::string& trusted_ca, const std::string& token,
-               const std::string& device_id, Changed changed = {});
+               const std::string& device_id, Changed changed = {}, bool durable_pairing = false);
+    // Excludes queued/running downloads and a ready image during physical pairing.
+    bool BeginPairing();
+    void FinishPairing(bool restart_required);
     bool Check();
     bool Install();
     bool Reboot();
@@ -54,6 +57,8 @@ private:
     RoundUpdateManifest manifest_;
     const esp_partition_t* candidate_ = nullptr;
     std::string base_, ca_, token_, device_;
+    bool durable_pairing_ = false;
+    bool pairing_pending_ = false;
     Changed changed_;
     bool Queue(Command command);
     void Notify();

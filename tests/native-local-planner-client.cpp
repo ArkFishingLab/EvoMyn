@@ -1,5 +1,6 @@
 #include "planner_client.h"
 #include "planner_wire.h"
+#include "planner_time.h"
 #include <cJSON.h>
 #include <cassert>
 #include <cstring>
@@ -94,6 +95,16 @@ int main() {
   assert(Flag(client.Submit(request), "saved") &&
          client.View().snapshot.tasks.size() == 1);
   const auto task = client.View().snapshot.tasks.front();
+  auto receipt = cJSON_Parse(client.Submit(request).c_str());
+  assert(receipt);
+  assert(std::string(cJSON_GetObjectItem(receipt, "due_local")->valuestring) ==
+         FormatPlannerBeijingTime(request.task.due_at));
+  cJSON_Delete(receipt);
+  auto listing = cJSON_Parse(client.List().c_str());
+  auto listed_task = cJSON_GetArrayItem(cJSON_GetObjectItem(listing, "tasks"), 0);
+  assert(std::string(cJSON_GetObjectItem(listed_task, "due_local")->valuestring) ==
+         FormatPlannerBeijingTime(request.task.due_at));
+  cJSON_Delete(listing);
   assert(task.id == "local-create-1" && notifications > 1);
   // A failed durable commit rolls back the entire model and never reports
   // saved.

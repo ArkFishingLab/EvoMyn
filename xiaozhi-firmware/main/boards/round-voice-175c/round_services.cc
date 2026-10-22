@@ -11,9 +11,13 @@
 #include "application.h"
 #include "archive_ack.h"
 #include "mcp_server.h"
+#include "round_console_wire.h"
 
 namespace round_voice {
 namespace {
+struct ConsoleCallbacks {
+    std::function<std::string(const std::string&)> control, worker_control;
+};
 void Reply(const std::string& response) {
     std::printf("\nROUND_REPLY %s\n", response.c_str());
     std::fflush(stdout);
@@ -109,7 +113,8 @@ void RoundServices::Loop() {
     }
 }
 
-void RoundServices::StartConsole(std::function<std::string(const std::string&)> control) {
+bool RoundServices::StartConsole(std::function<std::string(const std::string&)> control,
+                                 std::function<std::string(const std::string&)> worker_control) {
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG_ENABLED
     usb_serial_jtag_driver_config_t serial_config{};
     serial_config.tx_buffer_size = 2048;
@@ -117,23 +122,23 @@ void RoundServices::StartConsole(std::function<std::string(const std::string&)> 
     if (!usb_serial_jtag_is_driver_installed() &&
         usb_serial_jtag_driver_install(&serial_config) != ESP_OK) {
         ESP_LOGW("RoundServices", "Physical diagnostic input unavailable");
-        return;
+        return false;
     }
 #elif CONFIG_ESP_CONSOLE_UART
     if (!uart_is_driver_installed(static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM)) &&
         uart_driver_install(static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM), 8192, 0, 0,
                             nullptr, 0) != ESP_OK) {
         ESP_LOGW("RoundServices", "Physical diagnostic input unavailable");
-        return;
+        return false;
     }
     uart_vfs_dev_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
 #endif
-    auto callback = new std::function<std::string(const std::string&)>(std::move(control));
+    auto callback = new ConsoleCallbacks{std::move(control), std::move(worker_control)};
     if (xTaskCreate(
             [](void* arg) {
-                auto callback = static_cast<std::function<std::string(const std::string&)>*>(arg);
+                auto callback = static_cast<ConsoleCallbacks*>(arg);
+                RoundConsoleLine input;
                 std::string line;
-                bool overflow = false;
                 for (;;) {
                     int ch;
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG_ENABLED
@@ -147,22 +152,18 @@ void RoundServices::StartConsole(std::function<std::string(const std::string&)> 
                         vTaskDelay(pdMS_TO_TICKS(20));
                         continue;
                     }
-                    if (ch == '\r')
+                    if (!input.Feed(static_cast<char>(ch), line))
                         continue;
-                    if (ch != '\n') {
-                        if (line.size() < 16384 && !overflow)
-                            line.push_back(static_cast<char>(ch));
-                        else {
-                            overflow = true;
-                            line.clear();
-                        }
-                        continue;
-                    }
-                    if (!overflow && line.rfind("ROUND_CTL ", 0) == 0) {
+                    if (line.rfind("ROUND_CTL ", 0) == 0) {
                         auto request = line.substr(10);
-                        Application::GetInstance().Schedule(
-                            [callback, request] { Reply((*callback)(request)); });
-                    } else if (!overflow && line.rfind("ROUND_MCP ", 0) == 0) {
+                        auto response =
+                            callback->worker_control ? callback->worker_control(request) : "";
+                        if (!response.empty())
+                            Reply(response);
+                        else
+                            Application::GetInstance().Schedule(
+                                [callback, request] { Reply(callback->control(request)); });
+                    } else if (line.rfind("ROUND_MCP ", 0) == 0) {
                         auto request = line.substr(10);
                         Application::GetInstance().Schedule([request] {
                             // The physical port exposes only planner calls, not arbitrary MCP
@@ -184,10 +185,12 @@ void RoundServices::StartConsole(std::function<std::string(const std::string&)> 
                         });
                     }
                     line.clear();
-                    overflow = false;
                 }
             },
-            "round_console", 6144, callback, 1, nullptr) != pdPASS)
+            "round_console", 12288, callback, 1, nullptr) != pdPASS) {
         delete callback;
+        return false;
+    }
+    return true;
 }
 }  // namespace round_voice

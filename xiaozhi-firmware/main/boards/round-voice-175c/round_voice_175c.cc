@@ -17,7 +17,9 @@
 #include "mcp_server.h"
 #include "ogg_demuxer.h"
 #include "planner_client.h"
+#include "planner_time.h"
 #include "round_display.h"
+#include "round_pairing.h"
 #include "round_power.h"
 #include "round_services.h"
 #include "round_update.h"
@@ -177,6 +179,9 @@ private:
     round_voice::RoundWifi wifi_;
     round_voice::PlannerClient planner_;
     round_voice::RoundUpdate update_;
+    round_voice::NvsPairingStore pairing_store_;
+    round_voice::RoundPairing pairing_{pairing_store_, round_voice::ValidatePairingCertificate};
+    std::atomic<bool> local_services_started_{false};
     std::atomic<bool> update_render_pending_{false};
     bool update_audio_paused_ = false;
     std::atomic<bool> boot_confirmed_{false};
@@ -189,9 +194,29 @@ private:
     std::vector<AudioStreamPacket> alarm_packets_;
 
     void StartLocalServices() {
+        if (local_services_started_.exchange(true))
+            return;
         display_->BindUpdate(&update_);
-        update_.Start(
-            ROUND_SERVICE_BASE, ROUND_SERVICE_CA, ROUND_SERVICE_TOKEN, ROUND_SERVICE_DEVICE,
+        // StartNetwork runs on Application after audio starts. Keep certificate
+        // parsing and NVS migration off that task, including first-boot writes.
+        if (xTaskCreate(
+                [](void* arg) {
+                    static_cast<RoundVoice175C*>(arg)->InitializeLocalServices();
+                    vTaskDelete(nullptr);
+                },
+                "round_services_boot", 12288, this, 2, nullptr) != pdPASS) {
+            // Do not confirm a pending OTA boot when its startup worker failed.
+            ESP_LOGE(TAG, "Local services startup unavailable");
+        }
+    }
+
+    void InitializeLocalServices() {
+        pairing_.Boot(
+            {ROUND_SERVICE_BASE, ROUND_SERVICE_CA, ROUND_SERVICE_TOKEN, ROUND_SERVICE_DEVICE});
+        const auto& pairing = pairing_.Config();
+        const bool pairing_configured = pairing_.Configured();
+        const bool update_ready = update_.Start(
+            pairing.base_url, pairing.ca, pairing.token, pairing.device_id,
             [this] {
                 if (!update_render_pending_.exchange(true))
                     Application::GetInstance().Schedule([this] {
@@ -225,92 +250,98 @@ private:
                         }
                         display_->RefreshUpdate(view);
                     });
-            });
-        xTaskCreate(
-            [](void* arg) {
-                auto self = static_cast<RoundVoice175C*>(arg);
-                vTaskDelay(pdMS_TO_TICKS(31000));
-                self->boot_confirmed_.store(round_voice::RoundUpdate::ConfirmHealthyBoot(
-                    self->display_ != nullptr && self->planner_.Ready()));
-                vTaskDelete(nullptr);
             },
-            "round_boot_health", 4096, this, 2, nullptr);
-        round_voice::RoundServices::StartConsole([this](const std::string& raw) {
-            auto request = cJSON_Parse(raw.c_str());
-            auto op = request ? cJSON_GetObjectItemCaseSensitive(request, "op") : nullptr;
-            auto result = cJSON_CreateObject();
-            auto id = request ? cJSON_GetObjectItemCaseSensitive(request, "id") : nullptr;
-            if (id)
-                cJSON_AddItemToObject(result, "id", cJSON_Duplicate(id, true));
-            std::string action = cJSON_IsString(op) ? op->valuestring : "";
-            bool ok = true;
-            if (action == "status") {
-                cJSON_AddStringToObject(result, "version", esp_app_get_description()->version);
-                cJSON_AddNumberToObject(result, "epoch", time(nullptr));
-                cJSON_AddNumberToObject(result, "uptime_ms", esp_timer_get_time() / 1000);
-                cJSON_AddBoolToObject(result, "screen_off", power_policy_.screen_off());
-                cJSON_AddBoolToObject(result, "alarm_active", alarm_active_);
-                cJSON_AddBoolToObject(result, "boot_confirmed", boot_confirmed_.load());
-                esp_ota_img_states_t state;
-                auto running = esp_ota_get_running_partition();
-                if (running) {
-                    cJSON_AddStringToObject(result, "partition", running->label);
-                    if (esp_ota_get_state_partition(running, &state) == ESP_OK)
-                        cJSON_AddNumberToObject(result, "ota_state", state);
+            pairing_configured);
+        const bool console_ready = round_voice::RoundServices::StartConsole(
+            [this](const std::string& raw) {
+                auto request = cJSON_Parse(raw.c_str());
+                auto op = request ? cJSON_GetObjectItemCaseSensitive(request, "op") : nullptr;
+                auto result = cJSON_CreateObject();
+                auto id = request ? cJSON_GetObjectItemCaseSensitive(request, "id") : nullptr;
+                if (id)
+                    cJSON_AddItemToObject(result, "id", cJSON_Duplicate(id, true));
+                std::string action = cJSON_IsString(op) ? op->valuestring : "";
+                bool ok = true;
+                if (action == "status") {
+                    cJSON_AddStringToObject(result, "version", esp_app_get_description()->version);
+                    cJSON_AddNumberToObject(result, "epoch", time(nullptr));
+                    cJSON_AddNumberToObject(result, "uptime_ms", esp_timer_get_time() / 1000);
+                    cJSON_AddBoolToObject(result, "screen_off", power_policy_.screen_off());
+                    cJSON_AddBoolToObject(result, "alarm_active", alarm_active_);
+                    cJSON_AddBoolToObject(result, "boot_confirmed", boot_confirmed_.load());
+                    esp_ota_img_states_t state;
+                    auto running = esp_ota_get_running_partition();
+                    if (running) {
+                        cJSON_AddStringToObject(result, "partition", running->label);
+                        if (esp_ota_get_state_partition(running, &state) == ESP_OK)
+                            cJSON_AddNumberToObject(result, "ota_state", state);
+                    }
+                    cJSON_AddNumberToObject(result, "tasks", planner_.View().snapshot.tasks.size());
+                    cJSON_AddItemToObject(result, "planner",
+                                          cJSON_Parse(planner_.GetContext().c_str()));
+                } else if (action == "planner_import") {
+                    auto snapshot = cJSON_GetObjectItemCaseSensitive(request, "snapshot");
+                    char* text = snapshot ? cJSON_PrintUnformatted(snapshot) : nullptr;
+                    ok = text && planner_.QueueImportSnapshot(text);
+                    cJSON_free(text);
+                } else if (action == "reboot") {
+                    Application::GetInstance().Schedule(
+                        [] { Application::GetInstance().Reboot(); });
+                } else if (action == "screen_toggle") {
+                    ToggleManualScreen(esp_timer_get_time() / 1000);
+                } else if (action == "screen_wake") {
+                    ApplyPowerAction(power_policy_.WakeForReminder(esp_timer_get_time() / 1000));
+                } else if (action == "alarm_stop") {
+                    StopAlarm();
+                } else if (action == "set_clock") {
+                    auto value = cJSON_GetObjectItemCaseSensitive(request, "epoch");
+                    ok = cJSON_IsNumber(value) && value->valuedouble >= 1704067200 &&
+                         value->valuedouble < 4102444800;
+                    if (ok) {
+                        timeval clock{};
+                        clock.tv_sec = static_cast<time_t>(value->valuedouble);
+                        ok = settimeofday(&clock, nullptr) == 0;
+                    }
+                } else if (action == "wifi_status") {
+                    auto wifi = wifi_.Snapshot();
+                    cJSON_AddStringToObject(result, "ip", wifi.ip.c_str());
+                    cJSON_AddStringToObject(result, "ssid", wifi.ssid.c_str());
+                } else if (action == "update_check") {
+                    ok = update_.Check();
+                } else if (action == "update_install") {
+                    ok = update_.Install();
+                } else if (action == "update_reboot") {
+                    ok = update_.Reboot();
+                } else if (action == "update_view") {
+                    auto view = update_.View();
+                    cJSON_AddNumberToObject(result, "phase", static_cast<int>(view.phase));
+                    cJSON_AddNumberToObject(result, "progress", view.progress);
+                    cJSON_AddStringToObject(result, "current_version",
+                                            view.current_version.c_str());
+                    cJSON_AddStringToObject(result, "new_version", view.new_version.c_str());
+                    cJSON_AddStringToObject(result, "error", view.error.c_str());
+                } else {
+                    ok = false;
                 }
-                cJSON_AddNumberToObject(result, "tasks", planner_.View().snapshot.tasks.size());
-                cJSON_AddItemToObject(result, "planner",
-                                      cJSON_Parse(planner_.GetContext().c_str()));
-            } else if (action == "planner_import") {
-                auto snapshot = cJSON_GetObjectItemCaseSensitive(request, "snapshot");
-                char* text = snapshot ? cJSON_PrintUnformatted(snapshot) : nullptr;
-                ok = text && planner_.QueueImportSnapshot(text);
+                cJSON_AddBoolToObject(result, "ok", ok);
+                char* text = cJSON_PrintUnformatted(result);
+                std::string response = text ? text : "{}";
                 cJSON_free(text);
-            } else if (action == "reboot") {
-                Application::GetInstance().Schedule([] { Application::GetInstance().Reboot(); });
-            } else if (action == "screen_toggle") {
-                ToggleManualScreen(esp_timer_get_time() / 1000);
-            } else if (action == "screen_wake") {
-                ApplyPowerAction(power_policy_.WakeForReminder(esp_timer_get_time() / 1000));
-            } else if (action == "alarm_stop") {
-                StopAlarm();
-            } else if (action == "set_clock") {
-                auto value = cJSON_GetObjectItemCaseSensitive(request, "epoch");
-                ok = cJSON_IsNumber(value) && value->valuedouble >= 1704067200 &&
-                     value->valuedouble < 4102444800;
-                if (ok) {
-                    timeval clock{};
-                    clock.tv_sec = static_cast<time_t>(value->valuedouble);
-                    ok = settimeofday(&clock, nullptr) == 0;
-                }
-            } else if (action == "wifi_status") {
-                auto wifi = wifi_.Snapshot();
-                cJSON_AddStringToObject(result, "ip", wifi.ip.c_str());
-                cJSON_AddStringToObject(result, "ssid", wifi.ssid.c_str());
-            } else if (action == "update_check") {
-                ok = update_.Check();
-            } else if (action == "update_install") {
-                ok = update_.Install();
-            } else if (action == "update_reboot") {
-                ok = update_.Reboot();
-            } else if (action == "update_view") {
-                auto view = update_.View();
-                cJSON_AddNumberToObject(result, "phase", static_cast<int>(view.phase));
-                cJSON_AddNumberToObject(result, "progress", view.progress);
-                cJSON_AddStringToObject(result, "current_version", view.current_version.c_str());
-                cJSON_AddStringToObject(result, "new_version", view.new_version.c_str());
-                cJSON_AddStringToObject(result, "error", view.error.c_str());
-            } else {
-                ok = false;
-            }
-            cJSON_AddBoolToObject(result, "ok", ok);
-            char* text = cJSON_PrintUnformatted(result);
-            std::string response = text ? text : "{}";
-            cJSON_free(text);
-            cJSON_Delete(result);
-            cJSON_Delete(request);
-            return response;
-        });
+                cJSON_Delete(result);
+                cJSON_Delete(request);
+                return response;
+            },
+            [this](const std::string& raw) {
+                return pairing_.Control(
+                    raw, [this] { return update_.BeginPairing(); },
+                    [this](bool restart) { update_.FinishPairing(restart); });
+            });
+        // One bounded startup task owns initialization and the health grace.
+        // The console cannot race migration, and task/driver failure is unhealthy.
+        vTaskDelay(pdMS_TO_TICKS(31000));
+        boot_confirmed_.store(round_voice::RoundUpdate::ConfirmHealthyBoot(
+            (!pairing_configured || update_ready) && console_ready && display_ != nullptr &&
+            planner_.Ready()));
     }
 
     void StartPlanner() {
@@ -693,12 +724,12 @@ private:
     // 初始化工具
     void InitializeTools() {
         auto& mcp_server = McpServer::GetInstance();
-        mcp_server.AddTool("self.planner.get_context",
-                           "Get the device's real current Beijing time and UTC epoch seconds. "
-                           "Call before interpreting relative dates. time_valid=false means no "
-                           "reminder can be saved or fired until the clock synchronizes.",
-                           PropertyList(),
-                           [this](const PropertyList&) { return planner_.GetContext(); });
+        mcp_server.AddTool(
+            "self.planner.get_context",
+            "Get the device's real current Beijing date/time. Always call before "
+            "creating or changing reminder dates, including tomorrow. time_valid=false means no "
+            "reminder can be saved or fired until the clock synchronizes.",
+            PropertyList(), [this](const PropertyList&) { return planner_.GetContext(); });
         mcp_server.AddTool(
             "self.planner.list",
             "List authoritative local notes/tasks/events, revisions and occurrence IDs. "
@@ -717,7 +748,7 @@ private:
                  Property("title", kPropertyTypeString).SetMaxLength(384),
                  Property("body", kPropertyTypeString, std::string("")).SetMaxLength(768),
                  Property("kind", kPropertyTypeString, std::string("task")).SetMaxLength(16),
-                 Property("due_at", kPropertyTypeInteger, 0, 0, INT32_MAX),
+                 Property("due_local", kPropertyTypeString).SetMaxLength(16),
                  Property("repeat", kPropertyTypeString, std::string("none")).SetMaxLength(8)});
             if (action == "update")
                 fields.AddProperty(Property("task_id", kPropertyTypeString).SetMaxLength(128));
@@ -727,11 +758,16 @@ private:
                 (action == "create" ? "Create a local item; expected_revision MUST be 0. "
                                     : "Replace all editable fields of an existing local item. ") +
                     std::string(
-                        "kind: note/task/event; repeat: none/daily/weekly. due_at is UTC Unix "
-                        "epoch SECONDS (not milliseconds), 0 for no reminder; daily/weekly "
-                        "requires "
-                        "a date. Supported tool dates end at 2038-01-19. Get Beijing time from "
-                        "get_context first. No server or PC is required to save.") +
+                        "kind: note/task/event; repeat: none/daily/weekly. due_local is REQUIRED: "
+                        "Beijing local date/time YYYY-MM-DD HH:MM (24-hour), or empty string "
+                        "only when no reminder was requested. Never calculate or pass Unix epochs. "
+                        "下午一点半 means 13:30, 下午一点 means 13:00, 午夜零点十分 means 00:10. "
+                        "Use get_context first to resolve tomorrow's date; preserve the user's "
+                        "minutes. "
+                        "If the date/time is ambiguous, ask instead of guessing. Daily/weekly "
+                        "requires a date. "
+                        "Supported years: 2024-2099. Confirm the returned due_local to the user. "
+                        "No server or PC is required to save.") +
                     save_contract,
                 fields, [this, action](const PropertyList& properties) {
                     round_voice::LocalPlannerRequest request;
@@ -743,7 +779,13 @@ private:
                     request.task.title = properties["title"].value<std::string>();
                     request.task.body = properties["body"].value<std::string>();
                     request.task.kind = properties["kind"].value<std::string>();
-                    request.task.due_at = properties["due_at"].value<int>();
+                    auto due = round_voice::ParsePlannerBeijingTime(
+                        properties["due_local"].value<std::string>());
+                    if (!due)
+                        return std::string("{\"saved\":false,\"queued\":false,\"error\":") +
+                               "\"due_local 必须是有效北京时间 YYYY-MM-DD "
+                               "HH:MM；下午一点半为13:30。\"}";
+                    request.task.due_at = *due;
                     request.task.repeat = properties["repeat"].value<std::string>();
                     return planner_.Submit(request);
                 });

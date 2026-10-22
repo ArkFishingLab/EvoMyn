@@ -35,7 +35,7 @@ int main() {
     round_voice::RenderPlanner(planner, pv);
     assert(planner.row_ids.size() == 2);
     assert(planner.row_ids[0] == "task-a");
-    assert(!std::strcmp(lv_label_get_text(planner.sync), "离线 · 使用已保存的提醒"));
+    assert(!std::strcmp(lv_label_get_text(planner.sync), "本地存储待恢复"));
     round_voice::RenderPlannerDetail(planner, pv, "task-a");
     assert(!lv_obj_has_state(planner.complete, LV_STATE_DISABLED));
     round_voice::RenderPlannerAlarm(planner, pv.snapshot.reminders[0], 0);
@@ -58,6 +58,12 @@ int main() {
     warm::SetKeys(u,false,0);
     lv_label_set_text(u.selected_name,"工作室");
     lv_label_set_text(u.clock,"18:44");lv_label_set_text(u.date,"10月16日 · 星期五");
+    lv_obj_update_layout(u.clock);
+    const auto* clock_font = lv_obj_get_style_text_font(u.clock, LV_PART_MAIN);
+    lv_point_t clock_size{};
+    lv_text_get_size(&clock_size, "23:59", clock_font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    assert(clock_size.x <= lv_obj_get_content_width(u.clock));
+    assert(clock_size.y <= lv_obj_get_content_height(u.clock));
     lv_label_set_text(u.connection,"已连接");lv_label_set_text(u.wifi_summary,"已连接");
     lv_slider_set_value(u.volume,55,LV_ANIM_OFF);lv_label_set_text(u.volume_value,"55%");
     lv_slider_set_value(u.brightness,85,LV_ANIM_OFF);lv_label_set_text(u.brightness_value,"85%");

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <ctime>
+#include "planner_time.h"
 #include "warm_assets.h"
 #include "warm_ui.h"
 
@@ -55,13 +56,7 @@ std::string RowDate(const PlannerTask& task) {
 std::string PlannerLocalTime(int64_t at, bool date) {
     if (!PlannerMetadataTime(at))
         return "时间待同步";
-    time_t value = static_cast<time_t>(at);
-    tm local{};
-#ifdef _WIN32
-    localtime_s(&local, &value);
-#else
-    localtime_r(&value, &local);
-#endif
+    auto local = PlannerBeijingParts(at);
     char text[48];
     if (date)
         snprintf(text, sizeof(text), "%d月%d日 %02d:%02d", local.tm_mon + 1, local.tm_mday,

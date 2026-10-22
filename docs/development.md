@@ -43,7 +43,7 @@ python tools/run_xiaozhi_host_tests.py
 
 可选 ESP32-S3 `round-voice-175c` 使用 ESP-IDF 6.0.2（上游最低 6.0.1）。先按[开放字体说明](round-open-source.md)生成字库并检查许可，然后在已激活的 ESP-IDF 环境中构建。`tools/build_round.ps1` 接受 `-IdfPath`、`-BuildDir`、`-Python` 与仅检查参数的 `-Check`，不依赖维护者电脑路径或代理。镜像目录使用 ASCII 路径；helper 保留已有 `sdkconfig`，新镜像需先按[板型 README](../xiaozhi-firmware/main/boards/round-voice-175c/README.md)完成板型及 SDK 配置。
 
-公开字体构建和实机测试仍需使用者完成；历史已烧录生产镜像使用不同字体资源。本仓库整理不会自动烧录、联网配置设备或发布 OTA。
+公共 2.5.10 已完成开放字体构建和原生渲染检查；实机测试单独验收。历史私人镜像使用不同字体和编译配对信息，不能作为公共附件。升级路径见[公共固件与首次配对](esp-firmware-update.md)。构建命令不自动烧录、修改设备配对或发布 OTA。
 
 ## 干净源码导出
 

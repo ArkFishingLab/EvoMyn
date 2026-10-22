@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <ctime>
 #include "planner_wire.h"
+#include "planner_time.h"
 
 namespace round_voice {
 namespace {
@@ -27,6 +28,10 @@ std::string Reply(const LocalPlannerRequest& r, const LocalPlannerResult& result
     cJSON_AddStringToObject(root, "task_id", result.task_id.c_str());
     cJSON_AddNumberToObject(root, "revision", result.revision);
     cJSON_AddStringToObject(root, "error", result.error.c_str());
+    if (result.ok && (r.action == "create" || r.action == "update")) {
+        cJSON_AddStringToObject(root, "due_local", FormatPlannerBeijingTime(r.task.due_at).c_str());
+        cJSON_AddStringToObject(root, "timezone", "Asia/Shanghai");
+    }
     return Dump(root);
 }
 }  // namespace
@@ -121,13 +126,7 @@ std::string PlannerClient::List() {
 std::string PlannerClient::GetContext() {
     const auto now = static_cast<int64_t>(time(nullptr));
     const bool valid = PlannerTime(now);
-    time_t beijing = static_cast<time_t>(now + 8 * 3600);
-    tm parts{};
-#ifdef _WIN32
-    gmtime_s(&parts, &beijing);
-#else
-    gmtime_r(&beijing, &parts);
-#endif
+    auto parts = PlannerBeijingParts(now);
     char text[40]{};
     if (valid)
         strftime(text, sizeof(text), "%Y-%m-%dT%H:%M:%S+08:00", &parts);
@@ -141,7 +140,8 @@ std::string PlannerClient::GetContext() {
     cJSON_AddStringToObject(root, "timezone", "Asia/Shanghai");
     cJSON_AddStringToObject(
         root, "time_format",
-        "UTC Unix epoch seconds; 0 means no due date; repeat uses Beijing daily/weekly time");
+        "create/update require due_local: Beijing YYYY-MM-DD HH:MM, 24-hour; empty means no reminder. "
+        "Never calculate Unix epochs. 下午一点半=13:30. Resolve tomorrow using beijing_time.");
     auto view = View();
     cJSON_AddBoolToObject(root, "ready", ready_.load());
     cJSON_AddNumberToObject(root, "revision", view.snapshot.revision);
@@ -275,6 +275,7 @@ void PlannerClient::Publish() {
         cJSON_AddStringToObject(item, "repeat", t.repeat.c_str());
         cJSON_AddNumberToObject(item, "revision", t.revision);
         cJSON_AddNumberToObject(item, "due_at", t.due_at);
+        cJSON_AddStringToObject(item, "due_local", FormatPlannerBeijingTime(t.due_at).c_str());
         auto occurrences = cJSON_AddArrayToObject(item, "occurrences");
         // Fired occurrences remain addressable for completion after reboot.
         for (const auto& r : model_.snapshot.reminders)
@@ -282,6 +283,7 @@ void PlannerClient::Publish() {
                 auto occurrence = cJSON_CreateObject();
                 cJSON_AddStringToObject(occurrence, "occurrence_id", r.id.c_str());
                 cJSON_AddNumberToObject(occurrence, "at", r.at);
+                cJSON_AddStringToObject(occurrence, "at_local", FormatPlannerBeijingTime(r.at).c_str());
                 cJSON_AddBoolToObject(occurrence, "fired",
                                       std::find(model_.fired.begin(), model_.fired.end(), r.id) !=
                                           model_.fired.end());

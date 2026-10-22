@@ -10,7 +10,10 @@ public:
     void Start(PlannerClient* planner, const std::string& base, const std::string& ca,
                const std::string& token, const std::string& device);
     // Physical UART diagnostic channel; callback is scheduled on Application.
-    static void StartConsole(std::function<std::string(const std::string&)> control);
+    // Optional worker_control runs serially on the physical console task. Empty
+    // replies delegate ordinary UI actions to the application callback.
+    static bool StartConsole(std::function<std::string(const std::string&)> control,
+                             std::function<std::string(const std::string&)> worker_control = {});
 
 private:
     PlannerClient* planner_ = nullptr;

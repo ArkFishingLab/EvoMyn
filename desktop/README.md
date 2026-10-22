@@ -90,13 +90,13 @@ gh release edit v0.2.14 --repo ArkFishingLab/EvoMyn --draft=false --latest
 
 设备固件使用独立的固定签名源 `https://github.com/ArkFishingLab/EvoMyn/releases/download/firmware-stable/firmware-latest.json`，不跟随桌面应用的 latest Release。源与下载均使用系统代理、无配对凭证的 HTTPS 连接和有界流式传输。公共包必须先完成隐私、许可证与板型审查；签名不替代这些审查或硬件验收。
 
-当前维护者的私有 2.5.8 镜像包含编译时配对凭证及未获再分发许可的字体资源，不能作为公共附件上传；该签名源尚未发布公共固件。公共版本需使用许可明确的字体，并将每台设备的配对配置保存在设备自身。旧设备还需先完成配对迁移，避免安装通用固件后失去后续 OTA 连接。此处的发布命令是格式示例，不表示示例版本已可公开下载。
+公共 2.5.10 使用开放字体，将配对保存在设备独立 NVS 中；应用 0.2.14 可直接从此源检查并下载。旧私有 2.5.7/2.5.8 先用仅供自己的 2.5.9 过渡版保存配对，或升级后通过 USB 配对一次，详见[固件更新与首次配对](../docs/esp-firmware-update.md)。维护者的私有镜像包含设备凭证，不能作为公共附件。
 
 先用 `server/personal-memory/vendor/device_updates.py` 校验应用镜像并生成本地发布目录，再签名已有 `manifest.json`：
 
 ```powershell
 # desktop/ 内；不会创建或轮换密钥
-node scripts/release-firmware.cjs --manifest ../artifacts/public-firmware/manifest.json --url https://github.com/ArkFishingLab/EvoMyn/releases/download/firmware-v2.5.8/firmware-2.5.8.bin --output ../artifacts/public-firmware/firmware-latest.json
+node scripts/release-firmware.cjs --manifest ../artifacts/public-firmware/release-2.5.10/manifest.json --url https://github.com/ArkFishingLab/EvoMyn/releases/download/firmware-v2.5.10/firmware-2.5.10.bin --output ../artifacts/public-firmware/release-2.5.10/firmware-latest.json
 ```
 
 工具默认复用 `.local/desktop-release/update-key.pem` 并比对已安装的公钥，只输出签名说明。先发布并验证版本专属的固件附件，再将 `firmware-latest.json` 更新至 `firmware-stable` Release。固件 Release 应标记为非最新桌面版本（`--latest=false`），避免影响桌面 `/releases/latest/download/latest.json`。签名载荷有独立的 `evomyn-firmware` 类型，不能作为桌面安装包使用。检查、下载均不会命令设备安装；设备安装仍由用户在设备上确认。
