@@ -29,3 +29,9 @@ test('downloads allow user-selected dashboard exports and recovery blobs only',(
  assert.equal(allowedDownload('blob:'+origin+'/123',origin),true);
  for(const value of ['https://evil.test/file.exe',origin+'/rpc',origin+'/memory/backup/api/download/../private','blob:https://evil.test/123'])assert.equal(allowedDownload(value,origin),false);
 });
+test('device pairing paths remain native-only and the sync switch is boolean',()=>{
+ validateCommand('import-device-sync',{});
+ validateCommand('set-device-sync',{enabled:true});validateCommand('set-device-sync',{enabled:false});
+ for(const params of [{directory:'C:/private'},{token:'secret'},{path:'C:/private'}])assert.throws(()=>validateCommand('import-device-sync',params));
+ for(const params of [{enabled:'true'},{enabled:true,host:'0.0.0.0'},{}])assert.throws(()=>validateCommand('set-device-sync',params));
+});

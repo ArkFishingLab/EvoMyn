@@ -36,6 +36,7 @@ function updateTray(){
   {label:'打开EvoMyn',click:reveal},
   {label:'MCP 服务',type:'checkbox',checked:!!serviceStatus?.mcp_enabled,enabled:!!serviceStatus?.ready&&!busy,click:item=>perform(item.checked?'start-mcp':'stop-mcp').catch(report)},
   {label:'小智云端',type:'checkbox',checked:!!serviceStatus?.cloud_enabled&&!!serviceStatus?.cloud_configured,enabled:!!serviceStatus?.ready&&!busy,click:item=>perform('set-cloud',{enabled:item.checked}).catch(report)},
+  {label:'设备同步',type:'checkbox',checked:!!serviceStatus?.device_sync?.enabled,enabled:!!serviceStatus?.device_sync?.configured&&!busy,click:item=>perform('set-device-sync',{enabled:item.checked}).catch(report)},
   {type:'separator'},{label:'退出',click:()=>quit()}
  ]));
 }
@@ -89,6 +90,11 @@ async function perform(action,parameters={}){
  }
  if(busy)throw new Error('服务正在切换，请稍后重试。');busy=true;errorMessage='';broadcast();
  try{
+  if(action==='import-device-sync'){
+   const selected=await dialog.showOpenDialog(window,{title:'选择已配对设备的服务目录（包含 app/.env）',properties:['openDirectory']});
+   if(selected.canceled||!selected.filePaths.length)return null;
+   parameters={directory:selected.filePaths[0]};
+  }
   if(action==='start-mcp')serviceStatus=await connection.start();
   else if(action==='connect-xiaozhi'){cloudStartedAt=Date.now();serviceStatus=await connection.connect(parameters.endpoint);}
   else if(action==='use-local'){serviceStatus=await connection.useLocal();cloudStartedAt=null;}
@@ -204,7 +210,7 @@ async function smokeOnboarding(){
      const heading=await view.webContents.executeJavaScript("(()=>{const r=document.querySelector('.hero h1').getBoundingClientRect();return {x:r.left,y:r.top};})()");headingPositions[target]={x:heading.x+view.getBounds().x,y:heading.y+view.getBounds().y};
      if(target==='memory')await wait(()=>view.webContents.executeJavaScript("document.getElementById('connectionStatus')?.textContent==='已连接'&&document.querySelectorAll('.item').length>0"));
      const controls=await view.webContents.executeJavaScript(target==='memory'?"({kind:'categories',count:[...document.querySelectorAll('#categoryNav button')].filter(b=>b.getClientRects().length>0).length,menuDisplay:getComputedStyle(document.getElementById('sidebarMenu')).display})":"({kind:'tabs',width:document.querySelector('.ability-tabs').getBoundingClientRect().width,radius:getComputedStyle(document.getElementById('mineTab')).borderRadius})");
-     if(target==='memory')assert.equal(controls.count,6,JSON.stringify(controls));else {assert.ok(controls.width<360,JSON.stringify(controls));assert.equal(controls.radius,'7px');}
+     if(target==='memory')assert.equal(controls.count,5,JSON.stringify(controls));else {assert.ok(controls.width<360,JSON.stringify(controls));assert.equal(controls.radius,'7px');}
      if(target==='memory'){
       await view.webContents.executeJavaScript("document.querySelector('.item').click()");assert.equal(await view.webContents.executeJavaScript("document.getElementById('detail').open"),true);await view.webContents.executeJavaScript("document.getElementById('closeDetail').click();location.hash='backup'");
       await wait(()=>view.webContents.executeJavaScript("location.hash==='#overview'&&document.getElementById('overview').classList.contains('active')"));assert.equal(await view.webContents.executeJavaScript("!!document.querySelector('[data-tab=backup]')||!!document.getElementById('backup')"),false);evidence.cloudBackupDeferred=true;
@@ -238,7 +244,7 @@ async function smokeOnboarding(){
   await wait(()=>categoryJS("document.getElementById('categoryManager').getAttribute('aria-busy')==='false'&&document.getElementById('categoryNav').textContent.includes('阅读笔记')"));
   assert.equal(await categoryJS("document.querySelector('[data-category-delete=\""+customId+"\"]').disabled"),true);
   await categoryJS("document.querySelector('[data-category-up=\""+customId+"\"]').click()");
-  await wait(()=>categoryJS("document.getElementById('categoryManager').getAttribute('aria-busy')==='false'&&document.querySelectorAll('[data-category-rename]')[4].dataset.categoryRename==='"+customId+"'"));
+  await wait(()=>categoryJS("document.getElementById('categoryManager').getAttribute('aria-busy')==='false'&&document.querySelectorAll('[data-category-rename]')[3].dataset.categoryRename==='"+customId+"'"));
   const emptyId=await addCategory('临时分类');await categoryJS("document.querySelector('[data-category-delete=\""+emptyId+"\"]').click()");
   await wait(()=>categoryJS("document.getElementById('categoryManager').getAttribute('aria-busy')==='false'&&!document.querySelector('[data-category-rename=\""+emptyId+"\"]')"));
   await fsp.writeFile(path.join(home,'categories-normal.png'),await capture(view.webContents));
@@ -293,6 +299,25 @@ async function smokeTest(){
   window.close();assert.equal(window.isVisible(),false);reveal();assert.equal(window.isVisible(),true);evidence.trayLifecycle=true;
   await showPage('settings');await new Promise(resolve=>setTimeout(resolve,1000));
   evidence.settingsDOM=await window.webContents.executeJavaScript("({page:state?.page,hidden:document.getElementById('settings').hidden,active:document.querySelector('.nav.active')?.dataset.page})");assert.equal(evidence.settingsDOM.hidden,false);assert.equal(evidence.settingsDOM.active,'settings');
+  const pairingFixture=path.join(home,'paired runtime');
+  if(fs.existsSync(path.join(pairingFixture,'app','.env'))){
+   assert.equal(await window.webContents.executeJavaScript("document.getElementById('device-sync').disabled"),true);
+   const picker=dialog.showOpenDialog;
+   try{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[pairingFixture]});await window.webContents.executeJavaScript("window.personalMemory.command('import-device-sync')");}finally{dialog.showOpenDialog=picker;}
+   assert.equal(serviceStatus.device_sync.configured,true);assert.equal(serviceStatus.device_sync.enabled,false);
+   await perform('stop-mcp');await window.webContents.executeJavaScript("window.personalMemory.command('set-device-sync',{enabled:true})");
+   assert.equal(serviceStatus.device_sync.running,true);assert.equal(serviceStatus.mcp_enabled,false);
+   const event={event_id:'desktop-smoke-completion',device_id:'fixture-device',task_id:'fixture-task',title:'Isolated device completion',body:'Packaged TLS acceptance only.',note:'',scheduled_at:null,completed_at:1780000000};
+   const post=()=>new Promise((resolve,reject)=>{const request=require('node:https').request({hostname:'127.0.0.1',port:serviceStatus.device_sync.port,path:'/device/archive',method:'POST',ca:fs.readFileSync(path.join(pairingFixture,'cert.pem')),headers:{Authorization:'Bearer '+'t'.repeat(64),'Device-Id':'fixture-device','Content-Type':'application/json'}},response=>{let data='';response.on('data',chunk=>data+=chunk);response.on('end',()=>{try{assert.equal(response.statusCode,200);resolve(JSON.parse(data));}catch(error){reject(error);}});});request.on('error',reject);request.setTimeout(15000,()=>request.destroy(new Error('Isolated TLS receipt timed out')));const body=JSON.stringify(event);request.setHeader('Content-Length',Buffer.byteLength(body));request.end(body);});
+   const receipt=await post();assert.equal((await post()).record_id,receipt.record_id);
+   serviceStatus=await service.request('status');broadcast();await new Promise(resolve=>setTimeout(resolve,200));
+   assert.equal(serviceStatus.device_sync.received_count,2);
+   assert.equal(await window.webContents.executeJavaScript("document.getElementById('device-sync-state').textContent"),'接收中');
+   assert.notEqual(await window.webContents.executeJavaScript("document.getElementById('device-sync-last').textContent"),'尚无完成日志');
+   await fsp.writeFile(path.join(home,'device-sync-settings.png'),(await window.webContents.capturePage()).toPNG());
+   await perform('set-device-sync',{enabled:false});assert.equal(serviceStatus.device_sync.running,false);
+   await perform('start-mcp');evidence.deviceSync={nativeImport:true,independentSwitch:true,tlsReceipt:true,deduplicated:true,statusVisible:true};
+  }
   await fsp.writeFile(path.join(home,'desktop-settings.png'),(await window.webContents.capturePage()).toPNG());
   await showPage('memory');await new Promise(resolve=>setTimeout(resolve,600));await fsp.writeFile(path.join(home,'desktop-dashboard.png'),(await window.capturePage()).toPNG());
   await service.stop();assert.equal(fs.existsSync(path.join(home,'service','desktop-session.json')),false);evidence.cleanShutdown=true;

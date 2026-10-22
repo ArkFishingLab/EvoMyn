@@ -25,6 +25,13 @@
 <main id="settings" hidden>
  <div class="page-heading"><div><h1>应用设置</h1><p>管理桌面偏好、本地数据与版本更新。</p></div><span id="version" class="page-tag"></span></div>
  <div id="error" role="alert" hidden></div>
+ <section class="panel device-sync-panel" aria-labelledby="device-sync-title">
+  <div class="cloud-heading"><div><h2 id="device-sync-title">设备同步</h2><p>将 ESP 设备已完成的日程存入这份记忆库。</p></div><div class="cloud-control"><span id="device-sync-state" class="inline-state" role="status">未配置</span><label class="switch"><input id="device-sync" type="checkbox" disabled aria-label="接收设备完成日志"><span></span></label></div></div>
+  <dl class="device-sync-info" id="device-sync-info" hidden><div><dt>接收地址</dt><dd id="device-sync-address"></dd></div><div><dt>最近收到</dt><dd id="device-sync-last">尚无完成日志</dd></div></dl>
+  <p id="device-sync-error" class="setup-error" role="alert" hidden></p>
+  <button class="button" id="device-sync-import" disabled>导入设备配对</button>
+  <details class="device-sync-help"><summary>连接说明 <span aria-hidden="true">＋</span></summary><p>选择之前为设备配置的服务目录（包含 <code>app/.env</code>），导入地址、证书与凭证后开启同步。新设备需先按硬件文档完成配对。</p><p>设备与这台电脑需网络互通。保持应用在后台运行；电脑离线或休眠时，完成日志留在设备上，恢复连接后自动补传。此开关独立于 MCP 服务。</p></details>
+ </section>
  <div class="columns"><section class="panel"><div class="section-heading"><h2>桌面偏好</h2></div>
   <div class="setting-row"><div><h3>开机启动</h3><p>登录 Windows 后在后台启动。</p></div><label class="switch"><input id="startup" type="checkbox" aria-label="开机启动"><span></span></label></div>
   <div class="setting-row"><div><h3>关闭窗口后保留在托盘</h3><p>从托盘重新打开，或右键退出。</p></div><span class="fixed-state">已启用</span></div>

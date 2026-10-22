@@ -1,6 +1,14 @@
 # EvoMyn · Windows 桌面应用
 
-安装 `EvoMyn-Setup-0.2.10-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
+安装 `EvoMyn-Setup-0.2.11-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
+
+## 设备完成日志同步
+
+在「应用设置 → 设备同步」点击「导入设备配对」，选择此前为 ESP 设备配对的服务目录（包含 `app/.env`，源码默认位于 `artifacts/local-memory-mcp/`），然后开启开关。应用会验证并私有保存现有地址、证书和设备凭证，不导入旧数据库，也不会更改设备配置。新设备请先按[硬件说明](../xiaozhi-firmware/main/boards/round-voice-175c/README.md)完成配对。
+
+完成日志直接进入这份桌面记忆库的「日志」，可由桌面和所有接入的 MCP 客户端读取。PC 和设备需网络互通，首次开启时按 Windows 提示允许专用网络访问；建议固定 PC 的局域网地址。此开关独立于 MCP，退出应用时停止，重开时恢复此前状态。PC 离线、休眠或应用退出时，设备持久保留未确认事件，恢复后重试；重复上传不重复记账。
+
+「接收中」表示本机网关已启动；「最近收到」表示最近成功接收时间。关闭铃声、稍后提醒或取消事项不算完成。设备最多缓存 16 条完成事件，缓存满时需先恢复连接再完成更多事项。此入口只接收完成日志，设备固件 OTA 仍需单独配置源码发布网关。
 
 ## 使用
 
@@ -50,7 +58,7 @@ npm test
 npm run dist
 ```
 
-输出：`desktop/dist/EvoMyn-Setup-0.2.10-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
+输出：`desktop/dist/EvoMyn-Setup-0.2.11-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
 
 ## 发布更新
 
@@ -58,10 +66,10 @@ npm run dist
 
 ```powershell
 # desktop/ 内；使用当前已备份的发布密钥签名
-node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.10-x64.exe --version 0.2.10 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.10/EvoMyn-Setup-0.2.10-x64.exe --output dist/latest.json
-gh release create v0.2.10 dist/EvoMyn-Setup-0.2.10-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.10" --notes "支持桌面记忆增删改，迁移至 ArkFishingLab 官方更新源。" --draft
+node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.11-x64.exe --version 0.2.11 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.11/EvoMyn-Setup-0.2.11-x64.exe --output dist/latest.json
+gh release create v0.2.11 dist/EvoMyn-Setup-0.2.11-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.11" --notes "设备完成日志同步到桌面，支持离线补传与四个默认分类。" --draft
 # 确认附件齐全后发布
-gh release edit v0.2.10 --repo ArkFishingLab/EvoMyn --draft=false --latest
+gh release edit v0.2.11 --repo ArkFishingLab/EvoMyn --draft=false --latest
 ```
 
 后续发布应同时更新版本号、版本标签、安装包名称和签名说明中的版本专属下载地址。每个正式 Release 均附同名 `latest.json`，固定的 `/releases/latest/download/latest.json` 会指向最新正式版本。先创建草稿并上传全部文件，检查后再发布，避免用户读取不完整版本。省略 `--url` 仍可生成离线说明。

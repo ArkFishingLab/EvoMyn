@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import * as model from '../static/personal-model.mjs';
 const { selectRecords, relatedRecords, summarize, safeResourceUrl } = model;
 
+test('fallback has four personal-first defaults and retains historical event records', () => {
+  assert.deepEqual(Object.keys(model.categories), ['background', 'people', 'journal', 'resource']);
+  assert.deepEqual(Object.values(model.categories).map(x => x.label), ['个人', '人脉', '日志', '资料']);
+  assert.deepEqual(Object.values(model.categories).map(x => x.number), ['01', '02', '03', '04']);
+  const catalog = model.categoryMap(undefined, [{category:'event'}, {category:'old-topic'}]);
+  assert.equal(catalog.event.label, '事件');
+  assert.equal(catalog.event.builtin, false);
+  assert.equal(catalog['old-topic'].label, 'old-topic');
+});
+
 test('category catalog uses renamed personal default and preserves custom and legacy records', () => {
   assert.equal(model.categories.background.label, '个人');
   const extra = [...records, { id:'c1', category:'custom-reading', title:'读书笔记', body:'内容', date:'', fields:{} },

@@ -73,7 +73,7 @@ class ViewerTests(unittest.TestCase):
     def test_categories_are_durable_model_free_and_leave_existing_records_untouched(self):
         _, raw = self.get('/api/categories')
         initial = json.loads(raw)
-        self.assertEqual(initial['categories'][2]['label'], '个人')
+        self.assertEqual([item['label'] for item in initial['categories']], ['个人', '人脉', '日志', '资料'])
         value = self.category_request({'action': 'create', 'label': '工作项目'}, initial['csrf'])
         item = next(x for x in value['categories'] if x['label'] == '工作项目')
         self.category_request({'action': 'rename', 'id': item['id'], 'label': '项目档案'}, initial['csrf'])

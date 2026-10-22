@@ -45,6 +45,7 @@ jobs:
         run: |
           node --test desktop/tests/*.test.cjs
           python -m unittest discover -s desktop/tests -p "test_staging.py" -v
+          python -m unittest discover -s desktop/tests -p "test_device_sync.py" -v
 
   desktop-backend:
     name: Windows desktop isolated backend

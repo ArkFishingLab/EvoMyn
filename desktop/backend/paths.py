@@ -109,7 +109,7 @@ def environment(root):
     # Configured service ports and inherited Python injection must never select
     # another installation, arbitrary import code or a production database.
     env = {key: value for key, value in os.environ.items()
-           if not key.startswith(('PYTHON', 'PERSONAL_ARCHIVE_', 'MCP_', 'DEVICE_GATEWAY_'))}
+           if not key.startswith(('PYTHON', 'PERSONAL_ARCHIVE_', 'MCP_', 'DEVICE_GATEWAY_', 'PLANNER_DEVICE_'))}
     env.update({key: value for key, value in values.items() if key in
         ('MCP_ENDPOINT', 'PLANNER_OWNER') and value is not None})
     env.setdefault('PLANNER_OWNER', 'device')

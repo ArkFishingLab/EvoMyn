@@ -27,7 +27,7 @@ def archive_record(category: str, title: str, body: str, occurrence_date: str | 
                    links: list[str] | None = None, steps: list[dict] | None = None,
                    file_path: str | None = None, href: str | None = None,
                    occurrence_end: str | None = None) -> dict[str, Any]:
-    """记录用户明确提供的个人信息。默认 category: people人脉/journal日志/background个人/event事件/resource资料。
+    """记录用户明确提供的个人信息。默认 category: background个人/people人脉/journal日志/resource资料。
     自定义分类先调用 archive_status，使用 categories 中的稳定 id；不要将显示名称当作 id。
     occurrence_date 是事情发生日期，不能用录入日期代替已知历史日期。只记录用户事实，未知信息留空。
     日期支持YYYY、YYYY-MM、YYYY-MM-DD；时间段使用occurrence_end，端点各自保留精度，可不同，持续至今可用ongoing。不要补造具体日。

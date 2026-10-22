@@ -9,12 +9,14 @@ from uuid import uuid4
 from filelock import FileLock
 
 DEFAULT_CATEGORIES = {
+    'background': ('个人', '关于自己、履历与个人积累'),
     'people': ('人脉', '认识的人，以及一起经历的事'),
     'journal': ('日志', '按日回看，留住事情的经过'),
-    'background': ('个人', '关于自己、履历与个人积累'),
-    'event': ('事件', '要求、进展与接下来要做的事'),
     'resource': ('资料', '与人物、经历和事件关联的文件'),
 }
+LEGACY_DEFAULTS = [('people', '人脉'), ('journal', '日志'), ('background', '个人'),
+                   ('event', '事件'), ('resource', '资料')]
+MIGRATION = 'personal-first-four-defaults-v1'
 TABLE = 'personal_archive_categories'
 
 
@@ -52,29 +54,66 @@ class CategoryCatalog:
             self._initialize(conn)
 
     def _initialize(self, conn):
-        if self.exists(conn): return
-        conn.execute('''CREATE TABLE personal_archive_categories (
-            id TEXT PRIMARY KEY, label TEXT NOT NULL, label_key TEXT NOT NULL UNIQUE,
-            position INTEGER NOT NULL)''')
-        conn.executemany('INSERT INTO personal_archive_categories VALUES(?,?,?,?)',
-            [(key, label, label.casefold(), index) for index, (key, (label, _)) in enumerate(DEFAULT_CATEGORIES.items())])
+        if not self.exists(conn):
+            conn.execute('''CREATE TABLE personal_archive_categories (
+                id TEXT PRIMARY KEY, label TEXT NOT NULL, label_key TEXT NOT NULL UNIQUE,
+                position INTEGER NOT NULL)''')
+            conn.executemany('INSERT INTO personal_archive_categories VALUES(?,?,?,?)',
+                [(key, label, label.casefold(), index) for index, (key, (label, _)) in enumerate(DEFAULT_CATEGORIES.items())])
+        conn.execute('CREATE TABLE IF NOT EXISTS personal_archive_category_migrations (id TEXT PRIMARY KEY)')
+        if not conn.execute('SELECT 1 FROM personal_archive_category_migrations WHERE id=?', (MIGRATION,)).fetchone():
+            rows = conn.execute('SELECT id,label,position FROM personal_archive_categories ORDER BY position,id').fetchall()
+            untouched = [(row['id'], row['label'], row['position']) for row in rows] == [
+                (key, label, index) for index, (key, label) in enumerate(LEGACY_DEFAULTS)]
+            if untouched and 'event' not in self._counts(conn):
+                conn.execute('DELETE FROM personal_archive_categories WHERE id=?', ('event',))
+            if untouched:
+                order = [*DEFAULT_CATEGORIES, 'event']
+                conn.executemany('UPDATE personal_archive_categories SET position=? WHERE id=?', enumerate(order))
+            conn.execute('INSERT INTO personal_archive_category_migrations VALUES (?)', (MIGRATION,))
+        # Pre-catalog databases (and historical imports) may contain categories
+        # absent from the catalog. Register them without rewriting any payload.
+        existing = {row['id'] for row in conn.execute('SELECT id FROM personal_archive_categories')}
+        for entry in self._entries(conn):
+            if entry['id'] not in existing:
+                conn.execute('INSERT INTO personal_archive_categories VALUES(?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM personal_archive_categories))',
+                    (entry['id'], entry['label'], entry['label'].casefold()))
+
+    @staticmethod
+    def _counts(conn):
+        counts = {}
+        for row in conn.execute('SELECT payload FROM personal_archive_records'):
+            key = json.loads(row['payload']).get('category')
+            if isinstance(key, str) and key: counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    def _entries(self, conn, counts=None):
+        entries = ([dict(row) for row in conn.execute('SELECT id,label FROM personal_archive_categories ORDER BY position,id')]
+            if self.exists(conn) else [{'id': key, 'label': value[0]} for key, value in DEFAULT_CATEGORIES.items()])
+        keys = {entry['id'] for entry in entries}
+        labels = {entry['label'].casefold() for entry in entries}
+        for key in sorted(self._counts(conn) if counts is None else counts):
+            if key in keys: continue
+            base = dict(LEGACY_DEFAULTS).get(key, key)
+            label, suffix = base, 2
+            while label.casefold() in labels:
+                label = f'{base} ({suffix})'
+                suffix += 1
+            entries.append({'id': key, 'label': label})
+            labels.add(label.casefold())
+        return entries
 
     def list(self):
         with self.connection() as conn:
-            entries = ([dict(row) for row in conn.execute('SELECT id,label FROM personal_archive_categories ORDER BY position,id')]
-                if self.exists(conn) else [{'id': key, 'label': value[0]} for key, value in DEFAULT_CATEGORIES.items()])
-            counts = {}
-            for row in conn.execute('SELECT payload FROM personal_archive_records'):
-                key = json.loads(row['payload']).get('category')
-                if isinstance(key, str): counts[key] = counts.get(key, 0) + 1
+            counts = self._counts(conn)
+            entries = self._entries(conn, counts)
         return [{**entry, 'builtin': entry['id'] in DEFAULT_CATEGORIES,
                  'subtitle': DEFAULT_CATEGORIES.get(entry['id'], ('', '此分类下的记忆'))[1],
                  'count': counts.get(entry['id'], 0)} for entry in entries]
 
     def labels(self):
         with self.connection() as conn:
-            if not self.exists(conn): return {key: value[0] for key, value in DEFAULT_CATEGORIES.items()}
-            return {row['id']: row['label'] for row in conn.execute('SELECT id,label FROM personal_archive_categories')}
+            return {row['id']: row['label'] for row in self._entries(conn)}
 
     def create(self, label):
         label = label_value(label)

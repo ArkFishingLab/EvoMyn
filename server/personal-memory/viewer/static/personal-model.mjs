@@ -1,10 +1,10 @@
 export const categories = {
-  people: { label: '人脉', subtitle: '认识的人，以及一起经历的事', number: '01' },
-  journal: { label: '日志', subtitle: '按日回看，留住事情的经过', number: '02' },
-  background: { label: '个人', subtitle: '关于自己、履历与个人积累', number: '03' },
-  event: { label: '事件', subtitle: '要求、进展与接下来要做的事', number: '04' },
-  resource: { label: '资料', subtitle: '与人物、经历和事件关联的文件', number: '05' },
+  background: { label: '个人', subtitle: '关于自己、履历与个人积累', number: '01' },
+  people: { label: '人脉', subtitle: '认识的人，以及一起经历的事', number: '02' },
+  journal: { label: '日志', subtitle: '按日回看，留住事情的经过', number: '03' },
+  resource: { label: '资料', subtitle: '与人物、经历和事件关联的文件', number: '04' },
 };
+const legacyCategories = {event: {label: '事件', subtitle: '此分类下的记忆', builtin: false}};
 
 export function categoryMap(entries, records = []) {
   const source = Array.isArray(entries) ? entries : Object.entries(categories).map(([id, value]) => ({id, ...value}));
@@ -16,7 +16,7 @@ export function categoryMap(entries, records = []) {
   }
   for (const record of records) {
     if (typeof record.category === 'string' && !reserved.has(record.category) && !Object.hasOwn(result, record.category)) {
-      result[record.category] = categories[record.category] || {label: record.category, subtitle: '此分类下的记忆'};
+      result[record.category] = categories[record.category] || legacyCategories[record.category] || {label: record.category, subtitle: '此分类下的记忆'};
     }
   }
   return result;

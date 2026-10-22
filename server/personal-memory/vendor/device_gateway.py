@@ -160,6 +160,11 @@ class DeviceHandler(BaseHTTPRequestHandler):
             return self.error(400, 'Invalid completion event')
         except Exception:
             return self.error(503, 'Archive unavailable; retry the same event')
+        if self.server.receipt_observer is not None:
+            try:
+                self.server.receipt_observer()
+            except Exception:
+                pass  # Optional status metadata must never invalidate a durable ACK.
         return self.reply(200, result)
 
     def do_GET(self):
@@ -184,7 +189,7 @@ class DeviceHandler(BaseHTTPRequestHandler):
 
 
 def create_device_server(*, host, port, tls_context, token, device, store=None,
-                         archive_root=None, allowed_hosts=None, update_provider=None):
+                         archive_root=None, allowed_hosts=None, update_provider=None, receipt_observer=None):
     """Return a stopped server; provider(path) may return (bytes, media_type).
 
     Only fixed authenticated OTA paths reach the provider. It must map hashes to
@@ -205,6 +210,7 @@ def create_device_server(*, host, port, tls_context, token, device, store=None,
     server.authorization = ('Bearer ' + token).encode('ascii')
     server.archive = DeviceArchive(store=store, archive_root=archive_root)
     server.update_provider = update_provider
+    server.receipt_observer = receipt_observer
     server.workers = threading.BoundedSemaphore(16)
     try:
         server.server_bind()
