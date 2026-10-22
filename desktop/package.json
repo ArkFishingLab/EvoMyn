@@ -1,7 +1,7 @@
 {
   "name": "evomyn-desktop",
   "productName": "EvoMyn",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "private": true,
   "description": "EvoMyn local memory and MCP desktop application",
   "author": "EvoMyn contributors",

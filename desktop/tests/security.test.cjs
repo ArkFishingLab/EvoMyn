@@ -33,3 +33,9 @@ test('retired device sync commands cannot enter native IPC',()=>{
  for(const params of [{},{directory:'C:/private'},{token:'secret'},{path:'C:/private'}])assert.throws(()=>validateCommand('import-device-sync',params));
  for(const params of [{enabled:true},{enabled:false},{enabled:'true'},{enabled:true,host:'0.0.0.0'},{}])assert.throws(()=>validateCommand('set-device-sync',params));
 });
+test('OTA commands accept no renderer-provided paths or configuration',()=>{
+ for(const action of ['ota-retry','ota-import-pairing','ota-import-release']){
+  assert.doesNotThrow(()=>validateCommand(action,{}));
+  for(const params of [{directory:'C:/private'},{manifest:'C:/private/manifest.json'},{enabled:true},{url:'https://example.test/'},{token:'secret'}])assert.throws(()=>validateCommand(action,params));
+ }
+});

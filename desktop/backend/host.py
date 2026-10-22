@@ -186,7 +186,7 @@ async def bridge(root, instance):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--role', required=True, choices=('worker', 'dashboard', 'bridge'))
+    parser.add_argument('--role', required=True, choices=('worker', 'dashboard', 'bridge', 'device-ota'))
     parser.add_argument('--data-root', type=Path, required=True)
     parser.add_argument('--instance', default='')
     args = parser.parse_args()
@@ -198,6 +198,9 @@ def main():
         asyncio.run(worker(root))
     elif args.role == 'dashboard':
         dashboard(root)
+    elif args.role == 'device-ota':
+        from device_ota import serve
+        serve(root)
     else:
         asyncio.run(bridge(root, args.instance))
 

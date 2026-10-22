@@ -89,7 +89,14 @@ async function perform(action,parameters={}){
  }
  if(busy)throw new Error('服务正在切换，请稍后重试。');busy=true;errorMessage='';broadcast();
  try{
-  if(action==='start-mcp')serviceStatus=await connection.start();
+  if(action==='ota-import-pairing'||action==='ota-import-release'){
+   const pairing=action==='ota-import-pairing';
+   const selected=await dialog.showOpenDialog(window,pairing
+    ?{title:'选择原有设备配对运行目录',properties:['openDirectory']}
+    :{title:'选择可信本地固件的 manifest.json',properties:['openFile'],filters:[{name:'固件说明 manifest.json',extensions:['json']}]});
+   if(!selected.canceled)serviceStatus=await service.request(action,pairing?{directory:selected.filePaths[0]}:{manifest:selected.filePaths[0]});
+  }
+  else if(action==='start-mcp')serviceStatus=await connection.start();
   else if(action==='connect-xiaozhi'){cloudStartedAt=Date.now();serviceStatus=await connection.connect(parameters.endpoint);}
   else if(action==='use-local'){serviceStatus=await connection.useLocal();cloudStartedAt=null;}
   else if(action==='set-cloud'&&parameters.enabled){cloudStartedAt=Date.now();serviceStatus=await connection.startCloud();}
@@ -313,6 +320,12 @@ async function smokeTest(){
   assert.equal('device_sync' in serviceStatus,false);
   assert.equal(await window.webContents.executeJavaScript("document.querySelector('[id^=device-sync]')===null"),true);
   evidence.localReminders=true;
+  assert.equal(await window.webContents.executeJavaScript("!!document.getElementById('ota-state')"),true);
+  if(process.env.PERSONAL_MEMORY_SMOKE_OTA==='1'){
+   assert.equal(serviceStatus.device_ota.running,true);assert.equal(serviceStatus.device_ota.version,'2.5.7');
+   assert.equal(await window.webContents.executeJavaScript("document.getElementById('ota-version').textContent.includes('2.5.7')"),true);
+   evidence.deviceOTA={running:true,version:serviceStatus.device_ota.version};
+  }
   await fsp.writeFile(path.join(home,'desktop-settings.png'),(await window.webContents.capturePage()).toPNG());
   await showPage('memory');await new Promise(resolve=>setTimeout(resolve,600));await fsp.writeFile(path.join(home,'desktop-dashboard.png'),(await window.capturePage()).toPNG());
   await service.stop();assert.equal(fs.existsSync(path.join(home,'service','desktop-session.json')),false);evidence.cleanShutdown=true;

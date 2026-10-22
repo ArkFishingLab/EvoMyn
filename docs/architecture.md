@@ -1,6 +1,6 @@
 # 架构与数据边界
 
-本文描述当前实现，以 Windows 桌面安装为主要入口；提醒仅在 ESP 设备本地执行，定制 OTA 属于源码后端的可选部署。EvoMyn 负责本地记忆、MCP 工具和设备配套服务；对话模型由接入的 AI 客户端或小智云端提供。设备是可选入口，桌面应用可独立使用。
+本文描述当前实现，以 Windows 桌面安装为主要入口；提醒仅在 ESP 设备本地执行，桌面应用可自动托管已配对设备的固件 OTA。EvoMyn 负责本地记忆、MCP 工具和设备配套服务；对话模型由接入的 AI 客户端或小智云端提供。设备是可选入口，桌面应用可独立使用。
 
 ## 组件与调用关系
 
@@ -23,6 +23,10 @@ flowchart TB
             Bridge["小智出站 WSS 桥接：可选"]
             Worker["统一 MCP 执行进程 / 能力过滤"]
             Dashboard["看板服务 / 记忆与接入管理"]
+            Gateway["局域网 HTTPS：仅固件更新"]
+            Firmware["私有固件缓存 / manifest"]
+            Supervisor -.->|自动启动 / 退出停止| Gateway
+            Gateway -->|固定 OTA 下载路由| Firmware
             UI -.->|服务开关| Supervisor
             UI -->|本机页面| Dashboard
             Adapter -->|工具请求| Supervisor
@@ -37,11 +41,6 @@ flowchart TB
         Worker <-->|ArchiveStore| Store
         Worker -->|语义检索与索引| Index
         Dashboard -->|新增 / 编辑 / 删除 / 分类管理| Store
-    end
-    subgraph Source["PC 源码运行环境：可选独立部署"]
-        Gateway["局域网 HTTPS 设备网关"]
-        Firmware["已核验固件 / manifest"]
-        Gateway -->|固定 OTA 下载路由| Firmware
     end
     Voice <-->|联网语音与工具调用| Cloud
     Bridge <-->|PC 主动建立连接| Cloud
@@ -95,7 +94,8 @@ MCP 开关控制工具执行，看板可继续浏览和管理记忆。桌面不�
 | `state/resources/` | 附件资源 |
 | `state/backups/` | 用户手动创建的数据库快照 |
 | `app/.env` | 小智接入点等私有配置 |
-| `device-sync.json`、`device-sync/` | 旧版配对及私有 TLS 凭证，兼容保留但不再启用 |
+| `device-sync.json`、`device-sync/` | 沿用已配对设备的身份与私有 TLS 凭证，仅用于 OTA；旧同步开关失效 |
+| `device-updates/` | 已校验的兼容固件与 manifest，桌面升级保留；不属于公开源码或安装包 |
 | `state/device-sync-status.json` | 旧版接收历史，不含事件正文 |
 | `app/models/` | 本地模型缓存 |
 | `logs/` | 运行日志 |
@@ -133,14 +133,16 @@ sequenceDiagram
 
 | | Windows 桌面应用 | ESP 固件 |
 | --- | --- | --- |
-| 更新来源 | GitHub Releases 的 `latest.json` 与版本专属 EXE；可配置有效 HTTPS 源 | 独立源码后端的 PC HTTPS 网关与本地固件目录 |
+| 更新来源 | GitHub Releases 的 `latest.json` 与版本专属 EXE；可配置有效 HTTPS 源 | 桌面应用托管的配对 HTTPS 网关与私有固件缓存 |
 | 触发方式 | 用户在应用内检查、下载、重启安装 | 设备使用已配置的 OTA 流程检查、下载固件 |
 | 校验 | Ed25519 签名、平台、版本、大小与 SHA-256 | HTTPS 设备鉴权、板型、分区、版本、镜像大小与 SHA-256 等 |
 | 影响范围 | 更新桌面程序与随包服务代码，默认保留用户数据 | 更新设备固件，不安装或升级 PC 应用 |
 
 桌面更新通过 Electron 网络栈使用 Windows 系统代理与 PAC，逐跳验证 HTTPS 并限制响应大小、重定向及空闲时间。默认源为 `https://github.com/ArkFishingLab/EvoMyn/releases/latest/download/latest.json`。更新说明的签名与 Windows Authenticode 独立，当前安装包没有 Windows 发布者证书。详见[桌面应用更新](../desktop/README.md#应用内更新)。
 
-桌面应用不提供固件发布。设备 OTA 使用独立源码网关的固定路由 `/updates/manifest` 和 `/updates/firmware/<sha256>.bin`，默认没有可下载内容。发布器先校验应用镜像，再原子发布文件与 manifest；当前流程面向未加密、未签名的应用镜像，不能把它等同于桌面 Ed25519 签名更新。设备烧录、固件发布和小智官方激活分别配置，桌面升级不会自动烧录设备。配置与发布格式见[后端说明](../server/personal-memory/README.md)。
+桌面应用启动时，若配对与固件有效，自动运行独立 `device-ota` 子进程；托盘常驻时保持，退出时停止。MCP 开关不控制 OTA。服务仅提供鉴权后的 `/updates/manifest` 与 `/updates/firmware/<sha256>.bin`；`/device/archive` 返回 410，且不初始化归档库。首次可从原运行目录导入已有配对，或沿用安装中的旧配对；新的设备配对仍需预先配置设备信任与地址。
+
+原生文件选择器允许导入可信发布包。先校验版本、板型、分区、SHA-256 与镜像，再通过私有快照原子发布到用户缓存；失败保留旧固件。当前兼容下限为 2.5.7，桌面与固件独立编号，不自动下载或替换固件。当前流程面向未加密、未签名的应用镜像，不能等同于桌面 Ed25519 签名更新。设备需与 PC 在同一局域网，用户仍在设备上确认下载与安装。源码网关可独立部署，格式见[后端说明](../server/personal-memory/README.md)。
 
 ## 源码运行与桌面安装的区别
 

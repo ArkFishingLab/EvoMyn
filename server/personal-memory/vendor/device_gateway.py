@@ -137,6 +137,8 @@ class DeviceHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.authorized(): return
+        if not self.server.archive_enabled:
+            return self.error(410, 'Device archive synchronization has been retired')
         if self.requestline.split()[1] != '/device/archive': return self.error(404, 'Route not found')
         if 'Transfer-Encoding' in self.headers or len(self.headers.get_all('Content-Length', [])) != 1:
             return self.error(400, 'Invalid request framing')
@@ -189,7 +191,8 @@ class DeviceHandler(BaseHTTPRequestHandler):
 
 
 def create_device_server(*, host, port, tls_context, token, device, store=None,
-                         archive_root=None, allowed_hosts=None, update_provider=None, receipt_observer=None):
+                         archive_root=None, allowed_hosts=None, update_provider=None, receipt_observer=None,
+                         archive_enabled=True):
     """Return a stopped server; provider(path) may return (bytes, media_type).
 
     Only fixed authenticated OTA paths reach the provider. It must map hashes to
@@ -208,7 +211,8 @@ def create_device_server(*, host, port, tls_context, token, device, store=None,
     server.tls_context = tls_context
     server.device = device
     server.authorization = ('Bearer ' + token).encode('ascii')
-    server.archive = DeviceArchive(store=store, archive_root=archive_root)
+    server.archive_enabled = archive_enabled
+    server.archive = DeviceArchive(store=store, archive_root=archive_root) if archive_enabled else None
     server.update_provider = update_provider
     server.receipt_observer = receipt_observer
     server.workers = threading.BoundedSemaphore(16)

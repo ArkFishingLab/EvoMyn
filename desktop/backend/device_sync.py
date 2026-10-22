@@ -1,4 +1,4 @@
-"""Legacy pairing compatibility helpers; not started or exposed by the desktop app."""
+"""Pairing compatibility shared by OTA; legacy archive serve is never desktop-started."""
 from datetime import datetime, timezone
 import io
 import ipaddress

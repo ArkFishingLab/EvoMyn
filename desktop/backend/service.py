@@ -166,7 +166,8 @@ class Supervisor:
         self.root.mkdir(parents=True, exist_ok=True)
         self.lockfile = FileLock(str(reject_links(self.root / 'desktop.lock')), timeout=0)
         self.lockfile.acquire()
-        self.worker = self.bridge = self.dashboard = self.http = None
+        self.worker = self.bridge = self.dashboard = self.http = self.ota = None
+        self.ota_status = None
         self.lock = threading.RLock()
         self.io_lock = threading.Lock()
         self.ready = False
@@ -197,6 +198,8 @@ class Supervisor:
             finally:
                 owner.close()
             self.env = environment(self.root)
+            # Import only reviewed runtime modules, never inherited PYTHONPATH.
+            sys.path.insert(0, str(self.root / 'app'))
             # Reserve all three ephemeral loopback listeners together so they
             # are distinct, then hand them to the fixed dashboard child.
             sockets = [socket.socket() for _ in range(3)]
@@ -226,6 +229,7 @@ class Supervisor:
             if self.settings['mcp_enabled']:
                 self.start_worker()
             self.refresh_bridge()
+            self.refresh_ota()
             self.ready = True
         except Exception:
             self.close()
@@ -251,6 +255,40 @@ class Supervisor:
             worker.stop()
             raise RuntimeError('MCP execution worker failed to start') from None
         self.worker = worker
+
+    def refresh_ota(self):
+        from device_ota import inspect
+        if self.ota:
+            self.ota.stop()
+            self.ota = None
+        self.ota_status = inspect(self.root)
+        if self.ota_status['state'] != 'starting':
+            return
+        child = None
+        try:
+            child = self.spawn('device-ota', pipes=True)
+            if bounded_read(child.process.stdout, timeout=10) != {'ready': True}:
+                raise RuntimeError('OTA host did not start')
+            self.ota = child
+            self.ota_status.update(state='ready', running=True,
+                message='已允许设备更新。在同一局域网内，从设备设置中检查更新。')
+        except Exception:
+            if child:
+                child.stop()
+            self.ota_status.update(state='error', running=False,
+                message='更新服务未启动。请检查电脑地址是否变化、端口是否被占用，然后重试。')
+
+    def device_ota_status(self):
+        status = dict(getattr(self, 'ota_status', None) or {})
+        if status.get('running') and (not self.ota or self.ota.process.poll() is not None):
+            status.update(state='error', running=False, message='设备更新服务已停止，请点击重试。')
+        elif status.get('running'):
+            from device_ota import inspect
+            current = inspect(self.root)
+            if current['state'] != 'starting':
+                return current
+            status['version'] = current['version']
+        return status
 
     def configured(self):
         from dotenv import dotenv_values
@@ -281,7 +319,7 @@ class Supervisor:
                 'cloud_enabled': self.settings['cloud_enabled'], 'cloud_configured': self.configured(),
                 'cloud_connected': self.connected(), 'dashboard_url': self.base_url + '/memory/',
                 'setup_url': self.base_url + '/setup/', 'capabilities_url': self.base_url + '/memory/mcp/',
-                'data_root': str(self.root)}
+                'data_root': str(self.root), 'device_ota': self.device_ota_status()}
 
     def client_config(self, format):
         if format not in ('json', 'toml'):
@@ -298,6 +336,19 @@ class Supervisor:
                 return self.status()
             if command == 'client-config' and set(params) == {'format'}:
                 return self.client_config(params['format'])
+            if command == 'ota-retry' and not params:
+                self.refresh_ota()
+                return self.status()
+            if command == 'ota-import-pairing' and set(params) == {'directory'} and isinstance(params['directory'], str):
+                from device_sync import import_pairing
+                import_pairing(self.root, params['directory'])
+                self.refresh_ota()
+                return self.status()
+            if command == 'ota-import-release' and set(params) == {'manifest'} and isinstance(params['manifest'], str):
+                from device_ota import import_release
+                import_release(self.root, params['manifest'])
+                self.refresh_ota()
+                return self.status()
             if command in ('start-mcp', 'stop-mcp') and not params:
                 enabled = command == 'start-mcp'
                 # Close the gate before killing children; existing adapters have
@@ -436,7 +487,7 @@ class Supervisor:
 
     def close(self):
         self.ready = False
-        for name in ('bridge', 'worker', 'dashboard'):
+        for name in ('ota', 'bridge', 'worker', 'dashboard'):
             child = getattr(self, name, None)
             if child:
                 child.stop()
@@ -465,6 +516,7 @@ def main():
             if not line:
                 break
             ident = None
+            command = None
             shutdown = False
             try:
                 if len(line) > LIMIT or not line.endswith(b'\n'):
@@ -483,7 +535,12 @@ def main():
                     result = supervisor.command(command, **request)
                 response = {'id': ident, 'ok': True, 'result': result}
             except Exception:
-                response = {'id': ident, 'ok': False, 'error': 'Desktop operation failed; check the selected operation and local installation.'}
+                errors = {
+                    'ota-import-pairing': '设备配对配置无效，请选择包含有效设备地址、凭证及证书的原运行目录。',
+                    'ota-import-release': '固件包无效或不兼容，请选择官方 manifest.json，并保留相邻固件文件；最低版本为 2.5.7。',
+                }
+                response = {'id': ident, 'ok': False, 'error': errors.get(command if isinstance(command, str) else None,
+                    'Desktop operation failed; check the selected operation and local installation.')}
             print(json.dumps(response, ensure_ascii=False), flush=True)
             if shutdown:
                 break
