@@ -75,6 +75,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+      # USB pairing fixtures generate temporary TLS credentials and exercise
+      # desktop locking; no model stack or physical serial device is needed.
+      - name: Install pairing fixture dependencies
+        run: python -m pip install cryptography==50.0.2 filelock==4.1.1
       - name: Audit Linux source candidates and link fixtures
         run: |
           python tools/audit_repository.py

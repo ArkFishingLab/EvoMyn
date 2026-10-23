@@ -110,6 +110,14 @@ class ServerTests(unittest.TestCase):
         initial=self.store.snapshot('seed')['reminders'][0]['id']
         self.store.action('other-client','cross','snooze',task['id'],1,initial)
         wsserver=create_websocket_server(self.store,'127.0.0.1',0,token,device,{'localhost'})
+        # websockets.sync.Server.shutdown() stops only the accept loop. Track
+        # every accepted connection so fixture teardown waits for its DB work.
+        connection_threads=[]
+        original_handler=wsserver.handler
+        def tracked_handler(*args,**kwargs):
+            connection_threads.append(threading.current_thread())
+            return original_handler(*args,**kwargs)
+        wsserver.handler=tracked_handler
         thread=threading.Thread(target=wsserver.serve_forever,daemon=True);thread.start()
         url='ws://127.0.0.1:'+str(wsserver.socket.getsockname()[1])+'/planner/ws'
         try:
@@ -153,5 +161,8 @@ class ServerTests(unittest.TestCase):
                 self.assertEqual(self.store.get(note['id'])['status'],'cancelled')
         finally:
             wsserver.shutdown();thread.join()
+            for connection_thread in connection_threads:
+                connection_thread.join(timeout=10)
+                self.assertFalse(connection_thread.is_alive(),'WebSocket fixture did not stop')
 
 if __name__=='__main__':unittest.main()
