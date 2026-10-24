@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import uuid
 
-VENDOR = ('archive_store.py', 'archive_categories.py', 'backup_bundle.py', 'backup_github.py', 'backup_manager.py',
+VENDOR = ('archive_store.py', 'archive_categories.py', 'attachment_files.py', 'backup_bundle.py', 'backup_github.py', 'backup_manager.py',
     'backup_server.py', 'device_archive.py', 'device_gateway.py', 'device_updates.py',
     'market_tools.py', 'mcp_admin.py', 'mcp_marketplace.py', 'mcp_observability.py',
     'mcp_packages.py', 'mcp_pipe.py', 'mcp_server.py', 'planner_server.py',
@@ -14,7 +14,7 @@ FILES = (tuple('app/' + name for name in VENDOR) + ('dashboard.py', 'onboarding.
     'viewer/server.py', 'viewer/index.html', 'viewer/SOURCE.json', 'viewer/LICENSE') +
     tuple('app/' + directory + '/' + name for directory in ('mcp_admin_web', 'planner_web')
         for name in ('index.html', 'style.css', 'app.js')) +
-    tuple('viewer/static/' + name for name in ('style.css', 'personal.mjs', 'personal-shared.mjs',
+    tuple('viewer/static/' + name for name in ('style.css', 'personal.mjs', 'personal-shared.mjs', 'attachments.mjs',
         'personal-native.css', 'personal-model.mjs', 'favicon.svg', 'backup.mjs', 'backup.css', 'brand-fonts.css', 'categories.mjs', 'categories.css', 'record-editor.mjs', 'record-editor.css', 'editor-model.mjs')))
 
 

@@ -10,7 +10,7 @@ import types
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 from urllib.parse import urlsplit
 
 BASE = Path(__file__).resolve().parents[1]
@@ -69,7 +69,7 @@ class DeviceOwnerTests(unittest.TestCase):
     def test_device_mcp_registers_only_archive_and_unchanged_market(self):
         module, registered = self.load_mcp('device')
         self.assertEqual(registered, ['market'])
-        self.assertEqual(len(module.mcp.tools), 9)
+        self.assertEqual(len(module.mcp.tools), 10)
         self.assertIn('self.planner.', module.mcp.descriptions['archive_record'])
         self.assertIn('self.planner.', module.mcp.descriptions['archive_list'])
         self.assertNotIn('planner_create', module.mcp.descriptions['archive_record'])
@@ -81,11 +81,19 @@ class DeviceOwnerTests(unittest.TestCase):
         self.assertIn('planner_create', module.mcp.descriptions['archive_record'])
 
     def test_direct_stdio_registry_respects_disabled_archive_package(self):
-        tools = ['archive_status', 'archive_record', 'archive_update', 'archive_list',
+        tools = ['archive_status', 'archive_record', 'archive_attach', 'archive_update', 'archive_list',
                  'archive_get', 'archive_search', 'archive_history', 'archive_backup', 'archive_retry_index']
         module, _ = self.load_mcp('device', groups=[
             {'builtin': True, 'enabled': False, 'external': False, 'tools': tools}])
         self.assertEqual(module.mcp.tools, {})
+
+    def test_attachment_tool_forwards_paths_and_revision_without_opening(self):
+        module, _ = self.load_mcp('device')
+        module.store = Mock()
+        module.store.add_attachments.return_value = {'id': 'fixture', 'revision': 2}
+        result = module.mcp.tools['archive_attach']('fixture', ['notes.txt'], 1)
+        module.store.add_attachments.assert_called_once_with('fixture', ['notes.txt'], 1)
+        self.assertEqual(result, {'id': 'fixture', 'revision': 2})
 
     def dashboard_part(self, name):
         source = ast.parse((BASE / 'local/dashboard.py').read_text(encoding='utf-8'))

@@ -1,7 +1,7 @@
 'use strict';
 const t = text => globalThis.EvoMynI18n?.t(text) ?? text;
 const $=id=>document.getElementById(id);
-const labels={archive_status:'档案状态',archive_record:'保存档案',archive_update:'更新档案',archive_list:'列出档案',archive_get:'档案详情',archive_search:'搜索记忆',archive_history:'修改历史',archive_backup:'备份档案',archive_retry_index:'重试索引',planner_get_context:'当前时间',planner_create:'新建计划',planner_list:'计划列表',planner_get:'计划详情',planner_delivery:'提醒同步状态',planner_update:'修改计划',planner_complete:'完成计划',planner_cancel:'取消计划',planner_snooze:'稍后提醒',worldtime_now:'当地时间',worldtime_convert:'时区换算'};
+const labels={archive_attach:'添加附件',archive_status:'档案状态',archive_record:'保存档案',archive_update:'更新档案',archive_list:'列出档案',archive_get:'档案详情',archive_search:'搜索记忆',archive_history:'修改历史',archive_backup:'备份档案',archive_retry_index:'重试索引',planner_get_context:'当前时间',planner_create:'新建计划',planner_list:'计划列表',planner_get:'计划详情',planner_delivery:'提醒同步状态',planner_update:'修改计划',planner_complete:'完成计划',planner_cancel:'取消计划',planner_snooze:'稍后提醒',worldtime_now:'当地时间',worldtime_convert:'时区换算'};
 let csrf='',pending=false,loading=false,generation=0,lastState=null,selected=null,lastJob='';
 const packageRows=new Map(),catalogRows=new Map();
 const statusText=(name,status)=>t(name)+(globalThis.EvoMynI18n?.language==='en'?' ':'')+t(status);

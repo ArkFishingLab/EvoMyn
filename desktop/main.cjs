@@ -9,6 +9,7 @@ const {createUpdateTransport,createElectronFetch}=require('./update-transport.cj
 const {ConnectionFlow}=require('./connection-flow.cjs');
 const {contentBounds,contentSpacing}=require('./layout.cjs');
 const {migrateLoginItem}=require('./startup.cjs');
+const {trustedAttachmentSender,openManagedAttachment}=require('./attachments.cjs');
 const {trustedShell,dashboardOrigin,allowedDashboard,allowedDownload,allowedSource,validateCommand}=require('./security.cjs');
 const home=process.env.PERSONAL_MEMORY_HOME?path.resolve(process.env.PERSONAL_MEMORY_HOME):path.join(app.getPath('appData'),'..','Local','PersonalMemory');
 // Keep the legacy data location so renaming does not create an empty profile.
@@ -159,12 +160,16 @@ async function create(){
  });
  window=new BrowserWindow({width:1180,height:840,minWidth:880,minHeight:640,show:false,title:'EvoMyn',icon:path.join(__dirname,'assets','icon.ico'),backgroundColor:'#f3f3f1',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,backgroundThrottling:false}});
  Menu.setApplicationMenu(null);guard(window.webContents);window.webContents.on('dom-ready',()=>applyLanguage(window.webContents).catch(report));
- view=new WebContentsView({webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,backgroundThrottling:false}});view.setBorderRadius(11);guard(view.webContents);view.webContents.on('dom-ready',()=>{if(allowedDashboard(view.webContents.getURL(),origin)){view.webContents.insertCSS(dashboardCSS).catch(report);applyLanguage(view.webContents).catch(report);}});view.webContents.on('did-navigate',(_event,url)=>{if(['memory','mcp'].includes(page)&&allowedDashboard(url,origin)&&new URL(url).pathname.startsWith('/memory/')){page=new URL(url).pathname.startsWith('/memory/mcp/')?'mcp':'memory';broadcast();}});view.setVisible(false);window.contentView.addChildView(view);resizeView();
+ view=new WebContentsView({webPreferences:{preload:path.join(__dirname,'attachment-preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,backgroundThrottling:false}});view.setBorderRadius(11);guard(view.webContents);view.webContents.on('dom-ready',()=>{if(allowedDashboard(view.webContents.getURL(),origin)){view.webContents.insertCSS(dashboardCSS).catch(report);applyLanguage(view.webContents).catch(report);}});view.webContents.on('did-navigate',(_event,url)=>{if(['memory','mcp'].includes(page)&&allowedDashboard(url,origin)&&new URL(url).pathname.startsWith('/memory/')){page=new URL(url).pathname.startsWith('/memory/mcp/')?'mcp':'memory';broadcast();}});view.setVisible(false);window.contentView.addChildView(view);resizeView();
  window.on('resize',resizeView);window.on('close',event=>{if(!quitting){event.preventDefault();window.hide();}});
  tray=new Tray(path.join(__dirname,'assets','icon.ico'));tray.on('double-click',reveal);tray.on('click',reveal);updateTray();
  ipcMain.handle('personal-memory:command',async(event,action,params)=>{
   if(!trustedShell(event,window?.webContents,shellFile))throw new Error('此页面没有桌面控制权限。');
   try{return await perform(action,params);}catch(error){report(error);throw new Error(error.message);}
+ });
+ ipcMain.handle('evomyn:open-attachment',async(event,params)=>{
+  if(!trustedAttachmentSender(event,view?.webContents,origin))throw new Error('此页面没有附件打开权限。');
+  return openManagedAttachment(params,service,shell);
  });
  await window.loadFile(shellFile);if(!process.argv.includes('--background'))reveal();
  try{await startService();}catch(error){report(error);}

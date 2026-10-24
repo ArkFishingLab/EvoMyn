@@ -120,11 +120,14 @@ class RecordEditorTests(unittest.TestCase):
         resource.parent.mkdir()
         resource.write_text('fixture')
         one = self.store.save({'category': 'resource', 'title': '文档', 'body': '原文', 'file_path': str(resource), 'fields': {'用途': '参考'}}, index=False)
+        managed_path = one['file_path']
         status, response = self.post({'action': 'update', 'id': one['id'], 'revision': 1, 'changes': {'body': '修改正文', 'category': 'people'}})
         self.assertEqual(status, 200)
         self.assertNotIn('file_path', response['record'])
         self.assertNotIn('memory_id', response['record'])
-        self.assertEqual(self.store.get(one['id'])['file_path'], str(resource.resolve()))
+        self.assertEqual(self.store.get(one['id'])['file_path'], managed_path)
+        self.assertEqual(Path(managed_path).read_text(), 'fixture')
+        self.assertEqual(resource.read_text(), 'fixture')
         self.assertEqual(response['record']['fields'], {'用途': '参考'})
         self.assertEqual(response['record']['category'], 'people')
         with urlopen(self.base + '/api/files/' + one['id'], timeout=5) as download:

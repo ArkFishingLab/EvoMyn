@@ -20,7 +20,7 @@ class PackageTests(unittest.TestCase):
     def test_default_groups_and_persistent_independent_switches(self):
         groups = self.packages.list()
         self.assertEqual([(item['id'], item['enabled'], len(item['tools'])) for item in groups],
-                         [('archive', True, 9), ('planner', True, 9)])
+                         [('archive', True, 10), ('planner', True, 9)])
         self.packages.set('archive', False)
         self.assertFalse(type(self.packages)(self.path).list()[0]['enabled'])
         self.assertTrue(self.packages.list()[1]['enabled'])
@@ -36,6 +36,15 @@ class PackageTests(unittest.TestCase):
         self.assertNotIn('PRIVATE', blocked)
         self.assertIsNone(self.packages.blocked_response(json.dumps({'id': 4, 'method': 'tools/call',
             'params': {'name': 'archive_get'}})))
+
+    def test_attachment_tool_is_registered_and_gated(self):
+        import ast
+        tree = ast.parse((Path(__file__).resolve().parents[1] / 'vendor/mcp_server.py').read_text(encoding='utf-8'))
+        tool = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'archive_attach')
+        self.assertTrue(tool.decorator_list)
+        self.packages.set('archive', False)
+        result = self.packages.blocked_response(json.dumps({'id': 7, 'method': 'tools/call', 'params': {'name': 'archive_attach'}}))
+        self.assertTrue(json.loads(result)['result']['isError'])
 
     def test_both_groups_can_be_off_and_corrupt_settings_do_not_reenable_tools(self):
         self.packages.set('archive', False)

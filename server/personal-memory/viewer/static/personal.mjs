@@ -6,6 +6,7 @@ import { $, $$, esc, stateHtml, showHtmlDetail } from './personal-shared.mjs';
 import { categoryMap, selectRecords, relatedRecords, summarize, safeResourceUrl, formatRecordDate } from './personal-model.mjs';
 import { mountCategories } from './categories.mjs';
 import { mountRecordEditor } from './record-editor.mjs';
+import { uploadAttachments, attachmentUrl, attachmentRepresentsPrimary } from './attachments.mjs';
 
 let records = [];
 let categories = categoryMap();
@@ -21,6 +22,11 @@ let reloadRequested = false;
 let pendingIndex = 0;
 let noticeSource = '';
 let archiveErrorMessage = '';
+let attachmentCsrf = '', attachmentBusy = false, attachmentStatusSource = '';
+function attachmentStatus(source = '') { attachmentStatusSource = source; $('#attachmentStatus').textContent = t(source); $('#attachmentStatus').hidden = !source; }
+function attachmentControls() {
+  for (const id of ['addAttachments','editRecord','deleteRecord']) $('#' + id).disabled = attachmentBusy;
+}
 function setNotice(source) { noticeSource = source; $('#recordNotice').textContent = t(source); $('#recordNotice').hidden = !source; }
 function renderConnection() {
   $('#connectionStatus').textContent = t(archiveError ? '连接失败' : ready ? '已连接' : '连接中');
@@ -113,6 +119,8 @@ function render() {
 }
 function fieldValue(value) { return typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? ''); }
 function openRecord(record) {
+  const focusedAttachment = document.activeElement?.dataset.attachmentOpen;
+  if (currentRecord?.id !== record.id && !attachmentBusy) attachmentStatus();
   currentRecord = record;
   $('#recordActions').hidden = !recordEditor.enabled || record.revision == null;
   $('#detailKind').textContent = categories[record.category]?.label || record.category;
@@ -120,9 +128,12 @@ function openRecord(record) {
   const steps = record.steps?.length ? `<h3 class="detail-section-title">${t("进展清单")}</h3><ul class="steps">${record.steps.map(step => `<li class="${step.done ? 'done' : ''}"><span aria-hidden="true">${step.done ? '✓' : '○'}</span><span>${esc(step.text)}</span><span class="step-status">${step.done ? t("已完成") : t("待推进")}</span></li>`).join('')}</ul>` : '';
   const linked = relatedRecords(records, record);
   const url = record.href ? safeResourceUrl(record.href.startsWith('/api/files/') ? '.' + record.href : record.href, location.href) : null;
-  const file = url ? `<a class="resource-link" href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${url.pathname.includes('/api/files/') && url.origin === location.origin ? t("下载关联文件") : t("打开关联资料")} ↗</a>` : '';
+  const file = url && !attachmentRepresentsPrimary(record) ? `<a class="resource-link" href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${url.pathname.includes('/api/files/') && url.origin === location.origin ? t("下载关联文件") : t("打开关联资料")} ↗</a>` : '';
+  const attachments = record.attachments?.length ? `<h3 class="detail-section-title">${t('附件')}</h3><ul class="attachment-list">${record.attachments.map(item => `<li><span class="attachment-name">${esc(item.name)}<small>${esc(Number.isFinite(item.size) ? `${(item.size / 1024).toFixed(1)} KiB` : '')}</small></span><span class="attachment-links">${globalThis.evomynAttachments?.open ? `<button type="button" data-attachment-open="${esc(item.id)}">${t('打开')}</button>` : ''}<a href="${esc(attachmentUrl(record.id, item.id))}" download>${t('下载')}</a></span></li>`).join('')}</ul>` : '';
   const relationships = linked.map(other => `<button class="relationship" data-record="${esc(other.id)}">${badge(categories[other.category]?.label || other.category)}<span>${esc(other.title)}</span><span class="arrow" aria-hidden="true">↗</span></button>`).join('') || `<p class="muted">${t("暂时没有关联记录。")}</p>`;
-  showHtmlDetail(`<p class="detail-date">${esc(formatRecordDate(record))}</p>${record.index_status === 'pending' ? `<p class="danger-note">${t("原始记录已保存，记忆索引尚未完成。")}</p>` : ''}<div class="detail-content">${esc(record.body)}</div>${fields ? `<dl class="detail-fields">${fields}</dl>` : ''}${steps}${file}<div class="detail-tags">${(record.tags || []).map(badge).join('')}</div><h3 class="detail-section-title">${t("关联记录 · ")}${linked.length}</h3>${relationships}`, record.title);
+  showHtmlDetail(`<p class="detail-date">${esc(formatRecordDate(record))}</p>${record.index_status === 'pending' ? `<p class="danger-note">${t("原始记录已保存，记忆索引尚未完成。")}</p>` : ''}<div class="detail-content">${esc(record.body)}</div>${fields ? `<dl class="detail-fields">${fields}</dl>` : ''}${steps}${file}${attachments}<div class="detail-tags">${(record.tags || []).map(badge).join('')}</div><h3 class="detail-section-title">${t("关联记录 · ")}${linked.length}</h3>${relationships}`, record.title);
+  attachmentControls();
+  if (focusedAttachment) $$('[data-attachment-open]').find(node => node.dataset.attachmentOpen === focusedAttachment)?.focus({preventScroll:true});
 }
 function route() {
   const [requestedCategory, encodedId] = location.hash.slice(1).split('/');
@@ -175,6 +186,7 @@ async function load() {
     }
     if (version !== mutationVersion) return;
     recordEditor.setAccess(editorAccess);
+    attachmentCsrf = editorAccess.enabled === true ? editorAccess.csrf || '' : '';
     archiveError = false;
     pendingIndex = payload.pending_index || 0;
     $('#bootError').hidden = true;
@@ -186,6 +198,7 @@ async function load() {
   } catch (error) {
     if (version !== mutationVersion) return;
     recordEditor.setAccess({enabled:false});
+    attachmentCsrf = '';
     $('#manageCategories').hidden = true;
     archiveError = true;
     archiveErrorMessage = error.message;
@@ -198,6 +211,12 @@ async function load() {
   }
 }
 document.addEventListener('click', event => {
+  const attachment = event.target.closest('[data-attachment-open]');
+  if (attachment && currentRecord && globalThis.evomynAttachments?.open) {
+    const recordId = currentRecord.id, attachmentId = attachment.dataset.attachmentOpen;
+    void globalThis.evomynAttachments.open(recordId, attachmentId).catch(() => attachmentStatus('无法打开附件，请使用下载链接。'));
+    return;
+  }
   const tab = event.target.closest('[data-tab]');
   if (tab) {
     if ($('#detail').open) $('#detail').close();
@@ -230,6 +249,29 @@ $('#manageCategories').addEventListener('click', () => { void categoryManager.op
 $('#createRecord').addEventListener('click', () => recordEditor.openRecord(null, {category:category === 'overview' ? '' : category}));
 $('#editRecord').addEventListener('click', () => { if (currentRecord) recordEditor.openRecord(currentRecord); });
 $('#deleteRecord').addEventListener('click', () => { if (currentRecord) recordEditor.openRecord(currentRecord, {deleting:true}); });
+$('#addAttachments').addEventListener('click', () => { if (!attachmentBusy && !recordEditor.open && currentRecord && attachmentCsrf) $('#attachmentFiles').click(); });
+$('#attachmentFiles').addEventListener('change', async () => {
+  const files = Array.from($('#attachmentFiles').files || []);
+  $('#attachmentFiles').value = '';
+  if (!files.length || attachmentBusy || recordEditor.open || !currentRecord || !attachmentCsrf) return;
+  const record = currentRecord;
+  attachmentBusy = true; attachmentControls(); attachmentStatus('正在添加附件…');
+  try {
+    await uploadAttachments(record, files, attachmentCsrf, {onRecord(updated) {
+      mutationVersion++; payloadSignature = '';
+      records = [...records.filter(item => item.id !== updated.id), updated];
+      route();
+    }});
+    attachmentStatus('附件已保存。');
+  } catch (error) {
+    attachmentStatus(error.message || '附件未能保存，请稍后重试。');
+    if (error.status === 403) { attachmentCsrf = ''; recordEditor.setAccess({enabled:false}); }
+  } finally {
+    attachmentBusy = false; attachmentControls();
+    if ($('#detail').open && currentRecord?.id === record.id) $('#addAttachments').focus({preventScroll:true});
+    void load();
+  }
+});
 $('#mobileMenuToggle').addEventListener('click', () => {
   const open = $('.sidebar').classList.toggle('mobile-menu-open');
   $('#mobileMenuToggle').setAttribute('aria-expanded',String(open));
@@ -247,6 +289,7 @@ window.addEventListener('evomyn-language-change', () => {
   const recordId = active?.dataset.record, tab = active?.dataset.tab;
   route();
   renderConnection();
+  attachmentStatus(attachmentStatusSource);
   $('#mobileMenuToggle').setAttribute('aria-label', t($('.sidebar').classList.contains('mobile-menu-open') ? '收起分类菜单' : '展开分类菜单'));
   if (!active?.isConnected) {
     const replacement = recordId ? $$('[data-record]').find(node => node.dataset.record === recordId) : tab ? $$('[data-tab]').find(node => node.dataset.tab === tab) : null;

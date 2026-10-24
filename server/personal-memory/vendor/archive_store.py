@@ -12,6 +12,7 @@ from runtime import ROOT, DATA_DIR, MODEL
 from filelock import FileLock
 from mnemosyne import Mnemosyne
 from archive_categories import CategoryCatalog, DEFAULT_CATEGORIES
+from attachment_files import import_attachment, cleanup_imports, resolve_attachment
 
 CATEGORIES = {key: value[0] for key, value in DEFAULT_CATEGORIES.items()}
 CHINA = timezone(timedelta(hours=8))
@@ -52,6 +53,7 @@ class ArchiveStore:
     def __init__(self, root=ROOT):
         self.root = Path(root).resolve()
         self.db_path = self.root / 'data' / 'mnemosyne.db'
+        self.resources = self.root / 'resources'
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = FileLock(str(self.db_path.parent / 'archive.lock'), timeout=60)
         self.index_lock = FileLock(str(self.db_path.parent / 'archive-index.lock'), timeout=60)
@@ -91,7 +93,7 @@ class ArchiveStore:
 
     def normalize(self, value):
         if not isinstance(value, dict): raise ValueError('记录必须是一个对象。')
-        record = {key: value[key] for key in ('id', 'category', 'title', 'body', 'date', 'date_end', 'fields', 'tags', 'links', 'steps', 'href', 'file_path') if key in value}
+        record = {key: value[key] for key in ('id', 'category', 'title', 'body', 'date', 'date_end', 'fields', 'tags', 'links', 'steps', 'href', 'file_path', 'attachments') if key in value}
         if not isinstance(record.get('category'), str) or record['category'] not in self.categories.labels():
             raise ValueError('分类不存在，请先通过 archive_status 查看可用分类编号。')
         for key in ('title', 'body'):
@@ -115,10 +117,7 @@ class ArchiveStore:
             except KeyError: raise ValueError(f'关联记录不存在：{linked_id}')
         if 'steps' in record and (not isinstance(record['steps'], list) or any(not isinstance(step, dict) or not isinstance(step.get('text'), str) or not isinstance(step.get('done'), bool) for step in record['steps'])): raise ValueError('steps 需要 text 字符串与 done 布尔值。')
         if record.get('file_path'):
-            path = Path(record['file_path']).expanduser().resolve()
-            if not path.is_file(): raise ValueError('关联的文件不存在。')
-            if path == self.db_path or path.is_relative_to(self.db_path.parent): raise ValueError('数据库文件不能作为展示附件。')
-            record['file_path'] = str(path)
+            if not isinstance(record['file_path'], str): raise ValueError('file_path 必须是字符串。')
             from urllib.parse import quote
             record['href'] = '/api/files/' + quote(record['id'], safe='')
         elif record.get('href'):
@@ -128,6 +127,32 @@ class ArchiveStore:
         return record
 
     def save(self, value, expected_revision=None, *, index=True):
+        return self._save(value, expected_revision, index=index)
+
+    def add_attachments(self, record_id, file_paths, expected_revision=None, *, index=True):
+        if not isinstance(file_paths, list) or not 1 <= len(file_paths) <= 20 or any(not isinstance(path, str) or not path for path in file_paths):
+            raise ValueError('file_paths 需要 1～20 个文件路径。')
+        with self.lock:
+            record = self.get(record_id)
+            result = self._save(record, record['revision'] if expected_revision is None else expected_revision,
+                                index=False, import_paths=file_paths)
+        if index:
+            self._index(record_id)
+            return self.get(record_id)
+        return result
+
+    def _save(self, value, expected_revision=None, *, index=True, import_paths=()):
+        imported = []
+        try:
+            result = self._save_transaction(value, expected_revision, imported, import_paths)
+        except BaseException:
+            cleanup_imports(imported)
+            raise
+        if index:
+            self._index(result['id'])
+        return self.get(result['id'])
+
+    def _save_transaction(self, value, expected_revision, imported, import_paths):
         with self.lock:
             record = self.normalize(value)
             stamp = now()
@@ -136,6 +161,23 @@ class ArchiveStore:
                     raise ArchiveConflict('记录已被删除，请刷新后重试。')
                 previous = conn.execute('SELECT * FROM personal_archive_records WHERE id=?', (record['id'],)).fetchone()
                 if expected_revision is not None and (previous['revision'] if previous else 0) != expected_revision: raise ArchiveConflict('记录已被更新，请重新读取后再修改。')
+                original = json.loads(previous['payload']) if previous else {}
+                attachments = original.get('attachments', [])
+                if 'attachments' in record and record['attachments'] != attachments:
+                    raise ValueError('附件元数据不能直接修改；请使用 archive_attach 添加附件。')
+                record['attachments'] = list(attachments)
+                if record.get('file_path'):
+                    unchanged = (record['file_path'] == original.get('file_path') and
+                                 Path(record['file_path']).is_relative_to(self.resources))
+                    if not unchanged:
+                        entry = import_attachment(record['file_path'], self.db_path, self.resources, record['id'])
+                        imported.append(entry)
+                        record['attachments'].append(entry)
+                        record['file_path'] = entry['file_path']
+                for path in import_paths:
+                    entry = import_attachment(path, self.db_path, self.resources, record['id'])
+                    imported.append(entry)
+                    record['attachments'].append(entry)
                 revision = previous['revision'] + 1 if previous else 1
                 record['created_at'] = json.loads(previous['payload'])['created_at'] if previous else stamp
                 record['updated_at'] = stamp
@@ -146,11 +188,7 @@ class ArchiveStore:
                     occurrence_date=excluded.occurrence_date,revision=excluded.revision,updated_at=excluded.updated_at''',
                     (record['id'], record['category'], record['date'], payload, revision, stamp))
                 conn.execute('INSERT INTO personal_archive_history VALUES (?,?,?,?)', (record['id'], revision, payload, stamp))
-            result = self.get(record['id'])
-        if index:
-            self._index(record['id'])
-            return self.get(record['id'])
-        return result
+        return record
 
     def _index(self, record_id):
         # The expensive model call does not hold the archive write lock. A
@@ -299,12 +337,8 @@ class ArchiveStore:
             if not any(hit['id'] == record['id'] for hit in hits): hits.append({**record, 'retrieval': 'keyword'})
         return hits[:top_k]
 
-    def attachment(self, record_id):
-        record = self.get(record_id)
-        if not record.get('file_path'): raise KeyError(record_id)
-        path = Path(record['file_path']).resolve()
-        if not path.is_file() or path.is_relative_to(self.db_path.parent): raise KeyError(record_id)
-        return path
+    def attachment(self, record_id, attachment_id='legacy'):
+        return resolve_attachment(self.db_path, self.resources, record_id, attachment_id)
 
     def status(self):
         import importlib.metadata

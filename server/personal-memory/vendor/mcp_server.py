@@ -18,7 +18,7 @@ def archive_status() -> dict[str, Any]:
 @mcp.tool(structured_output=True, description=(
     '记录用户明确提供的个人事实。category 使用 archive_status 返回的 categories.id，支持用户自定义分类。'
     '发生时间未知留空，支持 YYYY、YYYY-MM、YYYY-MM-DD 与 occurrence_end 时间段，持续至今可用 ongoing；不补造具体日。'
-    'fields 保存用户事实，links 仅关联已有档案 ID，本地附件使用 file_path。'
+    'fields 保存用户事实，links 仅关联已有档案 ID，本地附件使用 file_path，自动复制到受管理资料目录并保留原件。'
     '未来计划、待办、日程和提醒使用圆盘设备自己的 self.planner.* 工具；不能当成已发生的档案事实。'
     '只有用户明确确认完成后，设备才将真实完成日志归档。index_status=pending 表示原文已保存但语义索引待重试。'
     if PLANNER_OWNER == 'device' else None))
@@ -31,13 +31,20 @@ def archive_record(category: str, title: str, body: str, occurrence_date: str | 
     自定义分类先调用 archive_status，使用 categories 中的稳定 id；不要将显示名称当作 id。
     occurrence_date 是事情发生日期，不能用录入日期代替已知历史日期。只记录用户事实，未知信息留空。
     日期支持YYYY、YYYY-MM、YYYY-MM-DD；时间段使用occurrence_end，端点各自保留精度，可不同，持续至今可用ongoing。不要补造具体日。
-    人脉信息用fields，事件状态用fields.状态，关联使用已有记录id。本地附件用file_path。
+    人脉信息用fields，事件状态用fields.状态，关联使用已有记录id。本地附件用file_path，自动复制到受管理资料目录并保留原件。
     未来计划、待办、便笺、日程或提醒请用 planner_create，不要当成已发生的事实。
     索引失败时index_status为pending，原始记录仍已保存，应明确告诉用户。"""
     record = {'category': category, 'title': title, 'body': body, 'fields': fields or {}, 'tags': tags or [], 'links': links or []}
     for key, value in [('date', occurrence_date), ('date_end', occurrence_end), ('steps', steps), ('file_path', file_path), ('href', href)]:
         if value is not None: record[key] = value
     return store.save(record)
+
+@mcp.tool(structured_output=True)
+def archive_attach(record_id: str, file_paths: list[str], expected_revision: int | None = None) -> dict[str, Any]:
+    """为已有档案添加本地附件。file_paths 为 1～20 个现有普通文件路径，每个最多 50 MiB。
+    文件复制到受管理资料目录，保留原件及原文件名；不会打开或执行文件。先读取记录，传 expected_revision 防止覆盖并发修改。
+    返回 attachments 的稳定 ID、名称、大小、SHA-256 和下载链接；不直接修改附件元数据。"""
+    return store.add_attachments(record_id, file_paths, expected_revision)
 
 @mcp.tool(structured_output=True)
 def archive_update(record_id: str, changes: dict, expected_revision: int | None = None) -> dict[str, Any]:

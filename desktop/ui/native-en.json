@@ -128,5 +128,10 @@
   "后台未能正常关闭，已取消本次更新。请重新打开应用后重试。": "The background service did not shut down cleanly. The update was canceled. Reopen the app and try again.",
   "客户端连接记录过多，已取消更新。": "There are too many client connection records. The update was canceled.",
   "客户端连接记录无效。": "Invalid client connection record.",
-  "客户端进程记录无效。": "Invalid client process record."
+  "客户端进程记录无效。": "Invalid client process record.",
+  "附件请求无效。": "Invalid attachment request.",
+  "附件不可用。": "Attachment unavailable.",
+  "此文件类型不能直接打开，可下载后手动处理。": "Download this file to open it manually.",
+  "无法打开附件，请确认已安装支持此格式的应用。": "Unable to open the attachment. Install an app that supports this file type.",
+  "此页面没有附件打开权限。": "This page cannot open attachments."
 }

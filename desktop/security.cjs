@@ -16,7 +16,7 @@ function allowedDownload(value,origin){
  try{
   if(value.startsWith('blob:'))return new URL(value.slice(5)).origin===origin;
   const url=new URL(value);return url.origin===origin&&!url.username&&!url.password&&
-   (/^\/setup\/clients\/(?:codex\.toml|claude\.json)$/.test(url.pathname)||url.pathname==='/memory/backup/restore-tool.py'||/^\/memory\/backup\/api\/download\/[A-Za-z0-9_-]+$/.test(url.pathname)||/^\/memory\/api\/files\/[A-Za-z0-9_-]+$/.test(url.pathname));
+   (/^\/setup\/clients\/(?:codex\.toml|claude\.json)$/.test(url.pathname)||url.pathname==='/memory/backup/restore-tool.py'||/^\/memory\/backup\/api\/download\/[A-Za-z0-9_-]+$/.test(url.pathname)||/^\/memory\/api\/files\/[A-Za-z0-9_-]+(?:\/[a-f0-9]{32})?$/.test(url.pathname));
  }catch{return false;}
 }
 function allowedSource(value){

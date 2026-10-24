@@ -3,6 +3,8 @@ import importlib.util
 import os
 import sys
 import threading
+import tempfile
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -142,21 +144,56 @@ class Dashboard(BaseHTTPRequestHandler):
         else:
             return self.send_error(404)
         body = None
+        uploading = path == '/memory/api/attachments'
         if self.command == 'POST':
+            if len(self.headers.get_all('Content-Length', [])) != 1 or self.headers.get_all('Transfer-Encoding') or any(len(self.headers.get_all(name, [])) > 1 for name in ('Host', 'Origin', 'X-CSRF-Token', 'X-File-Name')):
+                self.close_connection = True
+                return self.send_error(400)
+            if uploading:
+                try:
+                    origin = urlsplit(self.headers.get('Origin', ''))
+                    valid = (origin.scheme in ('http', 'https') and origin.netloc == host
+                        and self.headers.get('Sec-Fetch-Site') != 'cross-site'
+                        and bool(self.headers.get('X-CSRF-Token'))
+                        and 0 < len(self.headers.get('X-File-Name', '')) <= 1024)
+                except ValueError: valid = False
+                if not valid:
+                    self.close_connection = True
+                    return self.send_error(403)
+                if self.headers.get('Content-Type', '').split(';')[0] != 'application/octet-stream':
+                    self.close_connection = True
+                    return self.send_error(415)
             try:
                 size = int(self.headers.get('Content-Length', '0'))
             except ValueError:
                 return self.send_error(400)
-            limit = 4096 if path.startswith('/memory/mcp/') else 65536
+            limit = 50 * 1024 * 1024 if uploading else 4096 if path.startswith('/memory/mcp/') else 65536
             if not 0 <= size <= limit:
                 self.close_connection = True
                 return self.send_error(413)
-            body = self.rfile.read(size)
-        headers = {key: self.headers[key] for key in ('Host', 'Origin', 'Cookie', 'Content-Type', 'X-CSRF-Token') if key in self.headers}
+            if uploading:
+                body = tempfile.SpooledTemporaryFile(max_size=1024 * 1024)
+                try:
+                    remaining, deadline = size, time.monotonic() + 60
+                    while remaining:
+                        budget = deadline - time.monotonic()
+                        if budget <= 0: raise TimeoutError()
+                        self.connection.settimeout(min(15, budget))
+                        block = self.rfile.read1(min(65536, remaining))
+                        if not block: raise ConnectionError()
+                        body.write(block); remaining -= len(block)
+                    body.seek(0)
+                except (OSError, TimeoutError, ConnectionError):
+                    body.close(); self.close_connection = True
+                    return self.send_error(408)
+            else:
+                body = self.rfile.read(size)
+        headers = {key: self.headers[key] for key in ('Host', 'Origin', 'Cookie', 'Content-Type', 'X-CSRF-Token', 'X-File-Name', 'Sec-Fetch-Site') if key in self.headers}
+        if self.command == 'POST': headers['Content-Length'] = str(size)
         request = Request('http://127.0.0.1:' + str(port) + tail, data=body, headers=headers, method=self.command)
         try:
             try:
-                response = urlopen(request, timeout=115 if path.startswith('/memory/mcp/') else 15)
+                response = urlopen(request, timeout=115 if path.startswith('/memory/mcp/') else 65 if uploading else 15)
             except HTTPError as error:
                 response = error
             with response:
@@ -173,6 +210,8 @@ class Dashboard(BaseHTTPRequestHandler):
             self.send_error(503)
         except (BrokenPipeError, ConnectionResetError):
             pass
+        finally:
+            if uploading and body is not None: body.close()
 
     do_GET = do_HEAD = do_POST = forward
 
