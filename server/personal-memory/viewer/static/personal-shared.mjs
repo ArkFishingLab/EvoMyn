@@ -1,3 +1,4 @@
+const t = text => globalThis.EvoMynI18n?.t(text) ?? text;
 // Extracted/adapted from wysie/mnemosyne-dashboard static/app.js.
 // MIT License, Copyright (c) 2026 Agent Hammy contributors; see ../LICENSE.
 export const $ = (s) => document.querySelector(s);
@@ -7,7 +8,7 @@ export function stateHtml(kind, title, body=''){
   return `<div class="state-card state-${esc(kind)}"><strong>${esc(title)}</strong>${body ? `<p>${esc(body)}</p>` : ''}</div>`;
 }
 // Upstream's HTML detail renderer, adapted to a native accessible modal.
-export function showHtmlDetail(html, title='详情'){
+export function showHtmlDetail(html, title=t("详情")){
   $('.drawer-title').textContent = title;
   $('#detailBody').innerHTML = html;
   const drawer = $('#detail');

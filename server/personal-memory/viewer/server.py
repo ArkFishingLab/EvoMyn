@@ -160,6 +160,7 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
                     content = file.read_bytes()
                     if file.name == 'index.html' and device_owns_planner:
                         content = content.replace('<a href="/memory/planner/">计划</a>'.encode('utf-8'), b'')
+                        content = content.replace('<a href="/memory/planner/"><!--i18n-->计划</a>'.encode('utf-8'), b'')
                     self.respond(content, kind + ('; charset=utf-8' if kind.startswith('text/') else ''))
             except (FileNotFoundError, KeyError):
                 self.respond({'error': 'Not found'}, code=404)

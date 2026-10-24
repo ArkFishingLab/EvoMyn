@@ -9,6 +9,7 @@ from pathlib import Path
 from contextlib import closing
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('memory_viewer', Path(__file__).resolve().parents[1] / 'server.py')
 viewer = importlib.util.module_from_spec(spec)
@@ -55,6 +56,17 @@ class ViewerTests(unittest.TestCase):
         self.save('second', '后来新增')
         _, body = self.get('/api/records')
         self.assertEqual({x['title'] for x in json.loads(body)['records']}, {'真实记录', '后来新增'})
+
+    def test_device_owned_planner_stays_hidden_with_localized_navigation(self):
+        with patch.dict('os.environ', {'PLANNER_OWNER': 'device'}):
+            server = viewer.create_server(self.db, port=0, resource_root=self.resources)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with urlopen('http://127.0.0.1:' + str(server.server_port) + '/') as response:
+                self.assertNotIn(b'href="/memory/planner/"', response.read())
+        finally:
+            server.shutdown(); server.server_close(); thread.join()
 
     def test_read_only_api_rejects_mutations(self):
         for method in ['POST', 'PUT', 'PATCH', 'DELETE']:

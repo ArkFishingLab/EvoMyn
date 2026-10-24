@@ -31,6 +31,7 @@ function validateCommand(action,parameters){
  if(action==='save-endpoint'&&keys==='endpoint'&&typeof parameters.endpoint==='string'&&parameters.endpoint.length<=8192)return;
  if(action==='export-config'&&keys==='format'&&['json','toml'].includes(parameters.format))return;
  if(action==='set-startup'&&keys==='enabled'&&typeof parameters.enabled==='boolean')return;
+ if(action==='set-language'&&keys==='language'&&['zh-CN','en'].includes(parameters.language))return;
  if(action==='set-update-feed'&&keys==='url'&&typeof parameters.url==='string'&&parameters.url.length<=4096)return;
  if(action==='view'&&keys==='page'&&['memory','mcp','setup','settings'].includes(parameters.page))return;
  throw new Error('不支持此操作。');

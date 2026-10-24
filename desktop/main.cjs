@@ -17,12 +17,22 @@ app.setName('EvoMyn');
 if(process.platform==='win32')app.setAppUserModelId('com.personal-memory.desktop');
 const shellFile=path.join(__dirname,'ui','index.html');
 const dashboardCSS=['tokens.css','dashboard.css'].map(file=>fs.readFileSync(path.join(__dirname,'ui',file),'utf8')).join('\n');
+const languageSource=fs.readFileSync(path.join(__dirname,'ui','i18n.js'),'utf8');
+const languageCatalog=Object.assign({},...['shell-en.json','viewer-en.json','native-en.json'].map(file=>JSON.parse(fs.readFileSync(path.join(__dirname,'ui',file),'utf8'))));
+const nativeLanguage=require('./ui/i18n.js').createTranslator(languageCatalog);
+const t=value=>nativeLanguage.t(value);
 let window,view,tray,service,updater,firmware,connection,poll,origin='',page='memory',quitting=false,busy=false,cloudStartedAt=null;
-let serviceStatus=null,errorMessage='',preferences={updateFeed:DEFAULT_UPDATE_FEED,startAtLogin:false};
+let serviceStatus=null,errorMessage='',preferences={updateFeed:DEFAULT_UPDATE_FEED,startAtLogin:false,language:'zh-CN'};
 const preferenceFile=path.join(home,'preferences.json');
 function snapshot(){return {version:app.getVersion(),service:serviceStatus,update:updater?.status(),firmware:firmware?.status(),preferences:{...preferences},busy,error:errorMessage,page,cloudStartedAt};}
 function broadcast(){if(window&&!window.isDestroyed())window.webContents.send('personal-memory:status',snapshot());updateTray();}
 async function persist(){await fsp.mkdir(home,{recursive:true});const temporary=preferenceFile+'.tmp';await fsp.writeFile(temporary,JSON.stringify(preferences),{mode:0o600});await fsp.rename(temporary,preferenceFile);}
+async function applyLanguage(contents){
+ if(!contents||contents.isDestroyed())return;
+ const url=contents.getURL();
+ if(contents===window?.webContents?url!==pathToFileURL(shellFile).href:!allowedDashboard(url,origin))return;
+ await contents.executeJavaScript(languageSource+'\n;window.EvoMynI18n.setCatalog('+JSON.stringify(languageCatalog)+');window.EvoMynI18n.setLanguage('+JSON.stringify(preferences.language)+');');
+}
 function guard(contents){
  contents.setWindowOpenHandler(({url})=>{if(contents===view?.webContents){if(allowedDownload(url,origin))contents.downloadURL(url);else if(allowedSource(url))shell.openExternal(url).catch(()=>report(new Error('无法打开来源页面，请稍后重试。')));}return {action:'deny'};});
  contents.on('will-attach-webview',event=>event.preventDefault());
@@ -32,12 +42,12 @@ function guard(contents){
 function resizeView(){if(!window||!view)return;const [width,height]=window.getContentSize();const bounds=contentBounds(width,height);if(!bounds)return;view.setBounds(bounds);const spacing=contentSpacing(width);view.webContents.executeJavaScript(`document.documentElement?.style.setProperty('--desktop-page-x','${spacing.x}px');document.documentElement?.style.setProperty('--desktop-page-top','${spacing.top}px')`).catch(()=>{});}
 function updateTray(){
  if(!tray)return;
- tray.setToolTip(`EvoMyn · MCP ${serviceStatus?.mcp_enabled?'运行中':'已关闭'}`);
+ tray.setToolTip(`EvoMyn · MCP ${serviceStatus?.mcp_enabled?t('运行中'):t('已关闭')}`);
  tray.setContextMenu(Menu.buildFromTemplate([
-  {label:'打开EvoMyn',click:reveal},
-  {label:'MCP 服务',type:'checkbox',checked:!!serviceStatus?.mcp_enabled,enabled:!!serviceStatus?.ready&&!busy,click:item=>perform(item.checked?'start-mcp':'stop-mcp').catch(report)},
-  {label:'小智云端',type:'checkbox',checked:!!serviceStatus?.cloud_enabled&&!!serviceStatus?.cloud_configured,enabled:!!serviceStatus?.ready&&!busy,click:item=>perform('set-cloud',{enabled:item.checked}).catch(report)},
-  {type:'separator'},{label:'退出',click:()=>quit()}
+  {label:t('打开EvoMyn'),click:reveal},
+  {label:t('MCP 服务'),type:'checkbox',checked:!!serviceStatus?.mcp_enabled,enabled:!!serviceStatus?.ready&&!busy,click:item=>perform(item.checked?'start-mcp':'stop-mcp').catch(report)},
+  {label:t('小智云端'),type:'checkbox',checked:!!serviceStatus?.cloud_enabled&&!!serviceStatus?.cloud_configured,enabled:!!serviceStatus?.ready&&!busy,click:item=>perform('set-cloud',{enabled:item.checked}).catch(report)},
+  {type:'separator'},{label:t('退出'),click:()=>quit()}
  ]));
 }
 function reveal(){if(!window)return;if(window.isMinimized())window.restore();window.show();window.focus();}
@@ -63,6 +73,13 @@ async function perform(action,parameters={}){
  validateCommand(action,parameters);
  if(action==='status')return snapshot();
  if(action==='preferences')return {...preferences};
+ if(action==='set-language'){
+  const previous=preferences.language;preferences.language=parameters.language;
+  try{await persist();}catch(error){preferences.language=previous;throw error;}
+  nativeLanguage.setLanguage(preferences.language);
+  await Promise.all([applyLanguage(window?.webContents),applyLanguage(view?.webContents)]);
+  broadcast();return snapshot();
+ }
  if(action==='update-status')return updater.status();
  if(action==='view'){await showPage(parameters.page);return snapshot();}
  if(action==='quit'){setImmediate(quit);return true;}
@@ -85,12 +102,12 @@ async function perform(action,parameters={}){
   app.setLoginItemSettings({openAtLogin:parameters.enabled,name:'EvoMyn',path:process.execPath,args:['--background']});preferences.startAtLogin=parameters.enabled;await persist();broadcast();return snapshot();
  }
  if(action==='update-import'){
-  const manifest=await dialog.showOpenDialog(window,{title:'选择签名更新说明',properties:['openFile'],filters:[{name:'签名更新说明',extensions:['json']}]});if(manifest.canceled)return updater.status();
-  const installer=await dialog.showOpenDialog(window,{title:'选择对应安装包',properties:['openFile'],filters:[{name:'Windows 安装包',extensions:['exe']}]});if(installer.canceled)return updater.status();
+  const manifest=await dialog.showOpenDialog(window,{title:t('选择签名更新说明'),properties:['openFile'],filters:[{name:t('签名更新说明'),extensions:['json']}]});if(manifest.canceled)return updater.status();
+  const installer=await dialog.showOpenDialog(window,{title:t('选择对应安装包'),properties:['openFile'],filters:[{name:t('Windows 安装包'),extensions:['exe']}]});if(installer.canceled)return updater.status();
   return updater.importRelease(manifest.filePaths[0],installer.filePaths[0]);
  }
  if(action==='export-config'){
-  const value=await service.request('client-config',parameters);const result=await dialog.showSaveDialog(window,{title:'导出 MCP 接入配置',defaultPath:`evomyn.${parameters.format}`,filters:[{name:'MCP 配置',extensions:[parameters.format]}]});
+  const value=await service.request('client-config',parameters);const result=await dialog.showSaveDialog(window,{title:t('导出 MCP 接入配置'),defaultPath:`evomyn.${parameters.format}`,filters:[{name:t('MCP 配置'),extensions:[parameters.format]}]});
   if(!result.canceled)await fsp.writeFile(result.filePath,value,{encoding:'utf8',mode:0o600});return !result.canceled;
  }
  if(busy)throw new Error('服务正在切换，请稍后重试。');busy=true;errorMessage='';broadcast();
@@ -102,8 +119,8 @@ async function perform(action,parameters={}){
   else if(action==='ota-import-pairing'||action==='ota-import-release'){
    const pairing=action==='ota-import-pairing';
    const selected=await dialog.showOpenDialog(window,pairing
-    ?{title:'选择原有设备配对运行目录',properties:['openDirectory']}
-    :{title:'选择可信本地固件的 manifest.json',properties:['openFile'],filters:[{name:'固件说明 manifest.json',extensions:['json']}]});
+    ?{title:t('选择原有设备配对运行目录'),properties:['openDirectory']}
+    :{title:t('选择可信本地固件的 manifest.json'),properties:['openFile'],filters:[{name:t('固件说明 manifest.json'),extensions:['json']}]});
    if(!selected.canceled)serviceStatus=await service.request(action,pairing?{directory:selected.filePaths[0]}:{manifest:selected.filePaths[0]});
   }
   else if(action==='start-mcp')serviceStatus=await connection.start();
@@ -123,7 +140,8 @@ async function quit(){
 }
 async function create(){
  await fsp.mkdir(home,{recursive:true});
- try{const saved=JSON.parse(await fsp.readFile(preferenceFile,'utf8'));preferences={updateFeed:resolveUpdateFeed(saved?.updateFeed),startAtLogin:saved?.startAtLogin===true};}catch{}
+ try{const saved=JSON.parse(await fsp.readFile(preferenceFile,'utf8'));preferences={updateFeed:resolveUpdateFeed(saved?.updateFeed),startAtLogin:saved?.startAtLogin===true,language:saved?.language==='en'?'en':'zh-CN'};}catch{}
+ nativeLanguage.setLanguage(preferences.language);
  migrateLoginItem(app,{executable:process.execPath,enabled:preferences.startAtLogin,isolated:!!process.env.PERSONAL_MEMORY_HOME});
  connection=new ConnectionFlow({request:async(command,params)=>{const status=await service.request(command,params);serviceStatus=status;return status;},needsSetup:async()=>{reveal();await showPage('setup');await window.webContents.executeJavaScript("document.getElementById('xiaozhi-details').open=true;document.getElementById('endpoint').focus();document.getElementById('endpoint').scrollIntoView({block:'center'})");}});
  const trust=require('./update-trust.json');
@@ -136,12 +154,12 @@ async function create(){
  session.defaultSession.on('will-download',(event,item,contents)=>{
   if(contents!==view?.webContents||!allowedDownload(item.getURL(),origin)){event.preventDefault();return;}
   const filename=path.basename(item.getFilename()).replace(/[<>:"/\\|?*\x00-\x1f]/g,'_');
-  item.setSaveDialogOptions({title:'保存到这台电脑',defaultPath:path.join(app.getPath('downloads'),filename)});
-  item.once('done',(_event,state)=>{if(state!=='completed'){errorMessage=state==='cancelled'?'下载已取消。':'文件下载失败，请重试。';broadcast();dialog.showMessageBox(window,{type:'warning',title:'文件未保存',message:errorMessage});}});
+  item.setSaveDialogOptions({title:t('保存到这台电脑'),defaultPath:path.join(app.getPath('downloads'),filename)});
+  item.once('done',(_event,state)=>{if(state!=='completed'){errorMessage=state==='cancelled'?t('下载已取消。'):t('文件下载失败，请重试。');broadcast();dialog.showMessageBox(window,{type:'warning',title:t('文件未保存'),message:errorMessage});}});
  });
  window=new BrowserWindow({width:1180,height:840,minWidth:880,minHeight:640,show:false,title:'EvoMyn',icon:path.join(__dirname,'assets','icon.ico'),backgroundColor:'#f3f3f1',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,backgroundThrottling:false}});
- Menu.setApplicationMenu(null);guard(window.webContents);
- view=new WebContentsView({webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,backgroundThrottling:false}});view.setBorderRadius(11);guard(view.webContents);view.webContents.on('dom-ready',()=>{if(allowedDashboard(view.webContents.getURL(),origin))view.webContents.insertCSS(dashboardCSS).catch(report);});view.webContents.on('did-navigate',(_event,url)=>{if(['memory','mcp'].includes(page)&&allowedDashboard(url,origin)&&new URL(url).pathname.startsWith('/memory/')){page=new URL(url).pathname.startsWith('/memory/mcp/')?'mcp':'memory';broadcast();}});view.setVisible(false);window.contentView.addChildView(view);resizeView();
+ Menu.setApplicationMenu(null);guard(window.webContents);window.webContents.on('dom-ready',()=>applyLanguage(window.webContents).catch(report));
+ view=new WebContentsView({webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,backgroundThrottling:false}});view.setBorderRadius(11);guard(view.webContents);view.webContents.on('dom-ready',()=>{if(allowedDashboard(view.webContents.getURL(),origin)){view.webContents.insertCSS(dashboardCSS).catch(report);applyLanguage(view.webContents).catch(report);}});view.webContents.on('did-navigate',(_event,url)=>{if(['memory','mcp'].includes(page)&&allowedDashboard(url,origin)&&new URL(url).pathname.startsWith('/memory/')){page=new URL(url).pathname.startsWith('/memory/mcp/')?'mcp':'memory';broadcast();}});view.setVisible(false);window.contentView.addChildView(view);resizeView();
  window.on('resize',resizeView);window.on('close',event=>{if(!quitting){event.preventDefault();window.hide();}});
  tray=new Tray(path.join(__dirname,'assets','icon.ico'));tray.on('double-click',reveal);tray.on('click',reveal);updateTray();
  ipcMain.handle('personal-memory:command',async(event,action,params)=>{

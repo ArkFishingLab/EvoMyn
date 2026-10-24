@@ -1,3 +1,4 @@
+const t = text => globalThis.EvoMynI18n?.t(text) ?? text;
 import { recordDraft, buildMutation, deleteMutation, createMutationClient } from './editor-model.mjs';
 
 export function mountRecordEditor(dialog, {getCategories, onSuccess, onReload, onClose = () => {}, onAccessChange = () => {}}) {
@@ -10,17 +11,21 @@ export function mountRecordEditor(dialog, {getCategories, onSuccess, onReload, o
   const reload = find('[data-editor-reload]');
   const client = createMutationClient();
   const names = ['category','title','body','date','date_end','tags'];
-  let original = null, mode = 'create', baseline = '', conflict = false, reloading = false, confirmation = null, trigger = null, accessError = false;
+  let original = null, mode = 'create', baseline = '', conflict = false, reloading = false, confirmation = null, trigger = null, accessError = false, errorSource = '';
 
   function values() { return Object.fromEntries(names.map(name => [name,form.elements.namedItem(name).value])); }
   function dirty() { return dialog.open && mode !== 'delete' && JSON.stringify(values()) !== baseline; }
-  function setError(message = '') { errorBox.textContent = message; errorBox.hidden = !message; }
+  function errorText(message) {
+    const status = /^保存失败（(\d+)），请稍后再试。$/.exec(message);
+    return status ? `${t('保存失败（')}${status[1]}${t('），请稍后再试。')}` : t(message);
+  }
+  function setError(message = '') { errorSource = message; errorBox.textContent = errorText(message); errorBox.hidden = !message; }
   function controls() {
     const busy = client.busy || reloading;
     fields.disabled = busy;
     form.elements.namedItem('category').disabled = mode === 'delete';
     submit.disabled = busy || !client.enabled || conflict || Boolean(confirmation);
-    submit.textContent = busy ? (reloading ? '正在载入…' : mode === 'delete' ? '正在删除…' : '正在保存…') : mode === 'delete' ? '删除这条记忆' : '保存记忆';
+    submit.textContent = busy ? (reloading ? t("正在载入…") : mode === 'delete' ? t("正在删除…") : t("正在保存…")) : mode === 'delete' ? t("删除这条记忆") : t("保存记忆");
     reload.hidden = !conflict;
     reload.disabled = busy || Boolean(confirmation);
     for (const button of dialog.querySelectorAll('[data-editor-close], [data-editor-cancel], [data-editor-discard], [data-editor-keep]')) button.disabled = busy;
@@ -38,13 +43,13 @@ export function mountRecordEditor(dialog, {getCategories, onSuccess, onReload, o
     for (const name of names) { form.elements.namedItem(name).value = draft[name]; form.elements.namedItem(name).removeAttribute('aria-invalid'); }
     baseline = JSON.stringify(values());
     find('[data-editor-delete-title]').textContent = original?.title || '';
-    find('#editorCategoryHelp').textContent = mode === 'create' ? '可在「管理分类」中修改分类名称和顺序。' : '更换分类会保留记忆内容、附件、关联和历史。';
+    find('#editorCategoryHelp').textContent = mode === 'create' ? t("可在「管理分类」中修改分类名称和顺序。") : t("更换分类会保留记忆内容、附件、关联和历史。");
     conflict = false; accessError = false; confirmation = null; confirm.hidden = true; setError(); controls();
   }
   function showConfirmation(action) {
     confirmation = action; confirm.hidden = false;
-    find('[data-editor-confirm-message]').textContent = action === 'reload' ? '重新载入会放弃当前草稿，改为最新版本。' : '还有未保存的内容。要放弃这份草稿吗？';
-    find('[data-editor-discard]').textContent = action === 'reload' ? '放弃草稿并载入' : '放弃草稿';
+    find('[data-editor-confirm-message]').textContent = action === 'reload' ? t("重新载入会放弃当前草稿，改为最新版本。") : t("还有未保存的内容。要放弃这份草稿吗？");
+    find('[data-editor-discard]').textContent = action === 'reload' ? t("放弃草稿并载入") : t("放弃草稿");
     controls(); find('[data-editor-keep]').focus();
   }
   function close() { confirmation = null; confirm.hidden = true; dialog.close(); }
@@ -57,10 +62,10 @@ export function mountRecordEditor(dialog, {getCategories, onSuccess, onReload, o
     reloading = true; confirmation = null; confirm.hidden = true; setError(); controls();
     try {
       const latest = await onReload(original.id);
-      if (!latest) throw new Error('这条记忆已被删除，当前草稿仍保留。请复制需要的内容后关闭。');
-      if (latest.revision == null || latest.id !== original.id) throw new Error('无法确认最新版本，当前草稿仍保留，请稍后重试。');
+      if (!latest) throw new Error("这条记忆已被删除，当前草稿仍保留。请复制需要的内容后关闭。");
+      if (latest.revision == null || latest.id !== original.id) throw new Error("无法确认最新版本，当前草稿仍保留，请稍后重试。");
       fill(latest);
-    } catch (error) { setError(error.message || '无法读取最新记录，草稿仍保留。'); }
+    } catch (error) { setError(error.message || "无法读取最新记录，草稿仍保留。"); }
     finally { reloading = false; controls(); if (dialog.open) (mode === 'delete' ? find('[data-editor-cancel]') : form.elements.namedItem('title')).focus(); }
   }
   form.addEventListener('submit', async event => {
@@ -79,7 +84,7 @@ export function mountRecordEditor(dialog, {getCategories, onSuccess, onReload, o
     let result;
     try { result = await pending; }
     catch (error) {
-      conflict = error.code === 'conflict'; setError(error.message || '未能保存，请稍后重试。');
+      conflict = error.code === 'conflict'; setError(error.message || "未能保存，请稍后重试。");
       onAccessChange(client.enabled);
       controls();
       if (conflict) reload.focus();
@@ -100,12 +105,24 @@ export function mountRecordEditor(dialog, {getCategories, onSuccess, onReload, o
   find('[data-editor-discard]').addEventListener('click', () => { if (confirmation === 'reload') void reloadLatest(); else close(); });
   window.addEventListener('beforeunload', event => { if (dirty() || client.busy) { event.preventDefault(); event.returnValue = ''; } });
 
+  window.addEventListener('evomyn-language-change', () => {
+    // Refresh control copy without filling the form or replacing its draft snapshot.
+    find('#recordEditorTitle').textContent = t(mode === 'delete' ? '删除记忆' : mode === 'update' ? '编辑记忆' : '新增记忆');
+    find('#editorCategoryHelp').textContent = t(mode === 'create' ? '可在「管理分类」中修改分类名称和顺序。' : '更换分类会保留记忆内容、附件、关联和历史。');
+    if (confirmation) {
+      find('[data-editor-confirm-message]').textContent = t(confirmation === 'reload' ? '重新载入会放弃当前草稿，改为最新版本。' : '还有未保存的内容。要放弃这份草稿吗？');
+      find('[data-editor-discard]').textContent = t(confirmation === 'reload' ? '放弃草稿并载入' : '放弃草稿');
+    }
+    errorBox.textContent = errorText(errorSource);
+    controls();
+  });
+
   return {
     get open() { return dialog.open; },
     get enabled() { return client.enabled; },
     setAccess(access) {
       client.setAccess(access); onAccessChange(client.enabled);
-      if (dialog.open && !client.enabled && !client.busy) { setError('编辑连接暂不可用，草稿已保留。恢复连接后可继续保存。'); accessError = true; }
+      if (dialog.open && !client.enabled && !client.busy) { setError("编辑连接暂不可用，草稿已保留。恢复连接后可继续保存。"); accessError = true; }
       else if (accessError && client.enabled) { setError(); accessError = false; }
       controls();
     },
@@ -113,7 +130,7 @@ export function mountRecordEditor(dialog, {getCategories, onSuccess, onReload, o
       if (dialog.open || client.busy || !client.enabled) return;
       trigger = document.activeElement;
       mode = deleting ? 'delete' : record ? 'update' : 'create'; dialog.dataset.mode = mode;
-      find('#recordEditorTitle').textContent = deleting ? '删除记忆' : record ? '编辑记忆' : '新增记忆';
+      find('#recordEditorTitle').textContent = deleting ? t("删除记忆") : record ? t("编辑记忆") : t("新增记忆");
       fields.hidden = deleting; find('[data-editor-deletion]').hidden = !deleting;
       fill(record, category); dialog.showModal();
       (deleting ? find('[data-editor-cancel]') : form.elements.namedItem('title')).focus();
