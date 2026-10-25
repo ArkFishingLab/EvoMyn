@@ -106,7 +106,8 @@ class UpdateManager extends EventEmitter{
   await fsp.mkdir(this.options.cacheDir,{recursive:true});
   // Cache paths belong to this application; do not install through a linked file.
   const info=await fsp.lstat(this.options.cacheDir);if(!info.isDirectory()||info.isSymbolicLink())throw new Error('更新缓存目录无效。');
-  return path.join(this.options.cacheDir,`EvoMyn-Setup-${this.candidate.version}-${this.options.arch}.exe`);
+  const name=this.options.platform==='darwin'?`EvoMyn-${this.candidate.version}-mac-${this.options.arch}.zip`:`EvoMyn-Setup-${this.candidate.version}-${this.options.arch}.exe`;
+  return path.join(this.options.cacheDir,name);
  }
  async download(){
   if(!this.candidate||this.value.state!=='available'||!this.candidate.url)throw new Error('请先检查可用更新。');
@@ -141,7 +142,7 @@ class UpdateManager extends EventEmitter{
   return this.perform('install',async()=>{
    await verifyFile(this.file,this.candidate);
    this.change({state:'installing',message:'正在停止服务并安装更新…'});
-   await this.options.onBeforeInstall();await verifyFile(this.file,this.candidate);await this.options.spawnInstaller(this.file,['/S','--updated','--force-run']);
+   await this.options.onBeforeInstall();await verifyFile(this.file,this.candidate);await this.options.spawnInstaller(this.file,this.options.platform==='darwin'?[]:['/S','--updated','--force-run']);
    return this.status();
   });
  }

@@ -1,6 +1,7 @@
 'use strict';
 // Real Electron acceptance using a new, disposable profile; never installed data.
 const fs=require('node:fs'),path=require('node:path'),{spawn}=require('node:child_process'),assert=require('node:assert/strict');
+const runtime=require('./acceptance-runtime.cjs');
 const desktop=path.resolve(__dirname,'..'),home=path.join(desktop,'build','attachments-acceptance-'+Date.now());
 fs.mkdirSync(home,{recursive:true});
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -15,7 +16,7 @@ async function connect(target){
  return {close:()=>socket.close(),async evaluate(expression){const value=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(value.error||value.result?.exceptionDetails)throw new Error(JSON.stringify(value.error||value.result.exceptionDetails));return value.result.result.value;},async screenshot(file){const value=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(file,Buffer.from(value.result.data,'base64'));}};
 }
 (async()=>{
- const port=await freePort(),child=spawn(path.join(desktop,'node_modules/electron/dist/electron.exe'),[desktop,'--remote-debugging-address=127.0.0.1','--remote-debugging-port='+port],{windowsHide:true,env:{...process.env,PERSONAL_MEMORY_HOME:home,MNEMOSYNE_NO_EMBEDDINGS:'1',HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1'}});
+ const port=await freePort(),child=spawn(runtime.executable,[...runtime.args,'--remote-debugging-address=127.0.0.1','--remote-debugging-port='+port],{windowsHide:true,env:{...process.env,PERSONAL_MEMORY_HOME:home,MNEMOSYNE_NO_EMBEDDINGS:'1',HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1'}});
  const log=fs.openSync(path.join(home,'electron.log'),'w');child.stdout.on('data',bytes=>fs.writeSync(log,bytes));child.stderr.on('data',bytes=>fs.writeSync(log,bytes));
  let shell,memory;const evidence={};
  try{
@@ -41,7 +42,7 @@ assert len(r['attachments'])==2 and len({e['file_path'] for e in r['attachments'
 for p in source.rglob('report.txt'):p.unlink()
 print(json.dumps({'id':r['id'],'revision':r['revision']}))`;
   const {execFileSync}=require('node:child_process');
-  const result=JSON.parse(execFileSync(path.join(desktop,'build/runtime/python/python.exe'),['-E','-s','-X','utf8','-c',code,path.join(desktop,'backend'),path.join(home,'service')],{encoding:'utf8',windowsHide:true,timeout:60000,env:{...process.env,MNEMOSYNE_NO_EMBEDDINGS:'1'}}));console.log('MCP import verified');evidence.mcpImport=true;evidence.originalsRemoved=true;
+  const result=JSON.parse(execFileSync(runtime.python,['-E','-s','-B','-X','utf8','-c',code,runtime.scripts,path.join(home,'service')],{encoding:'utf8',windowsHide:true,timeout:60000,env:{...process.env,MNEMOSYNE_NO_EMBEDDINGS:'1'}}));console.log('MCP import verified');evidence.mcpImport=true;evidence.originalsRemoved=true;
   memory=await connect(await until(async()=>(await targets()).find(item=>/\/memory\/$/.test(item.url))));
   await memory.evaluate("document.getElementById('refresh').click()");
   await until(()=>memory.evaluate(`fetch('./api/records').then(r=>r.json()).then(v=>v.records.some(r=>r.id===${JSON.stringify(result.id)}))`));
@@ -63,7 +64,7 @@ print(json.dumps({'id':r['id'],'revision':r['revision']}))`;
  }finally{
   memory?.close();if(shell){try{await shell.evaluate("window.personalMemory.command('quit')");}catch{}shell.close();}
   for(let n=0;n<40&&child.exitCode===null;n++)await sleep(250);
-  if(child.exitCode===null&&child.pid)await new Promise(resolve=>{const killer=spawn('taskkill.exe',['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});killer.once('error',resolve);killer.once('exit',resolve);});
+  if(child.exitCode===null&&child.pid)await runtime.stopChild(child);
   fs.closeSync(log);
  }
 })().catch(error=>{console.error(error);process.exitCode=1;});

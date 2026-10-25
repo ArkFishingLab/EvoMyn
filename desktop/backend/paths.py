@@ -9,7 +9,7 @@ VENDOR = ('archive_store.py', 'archive_categories.py', 'attachment_files.py', 'b
     'backup_server.py', 'device_archive.py', 'device_gateway.py', 'device_updates.py',
     'market_tools.py', 'mcp_admin.py', 'mcp_marketplace.py', 'mcp_observability.py',
     'mcp_packages.py', 'mcp_pipe.py', 'mcp_server.py', 'planner_server.py',
-    'planner_store.py', 'planner_tools.py', 'restore_backup.py', 'runtime.py')
+    'planner_store.py', 'planner_tools.py', 'restore_backup.py', 'runtime.py', 'local_http.py')
 FILES = (tuple('app/' + name for name in VENDOR) + ('dashboard.py', 'onboarding.py',
     'viewer/server.py', 'viewer/index.html', 'viewer/SOURCE.json', 'viewer/LICENSE') +
     tuple('app/' + directory + '/' + name for directory in ('mcp_admin_web', 'planner_web')

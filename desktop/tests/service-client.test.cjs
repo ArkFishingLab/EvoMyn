@@ -9,7 +9,7 @@ function fixture({shutdown=true,kill=true}={}){
 }
 test('service pipe correlates responses and launches isolated bundled Python',async()=>{
  const {client,child}=fixture();assert.equal((await client.start()).ready,true);
- assert.deepEqual(child.arguments[1].slice(0,5),['-E','-s','-X','utf8','-u']);assert.equal(child.arguments[2].env.PYTHONPATH,undefined);assert.equal(child.arguments[2].env.PYTHONHOME,undefined);
+ assert.deepEqual(child.arguments[1].slice(0,6),['-E','-s','-B','-X','utf8','-u']);assert.equal(child.arguments[2].env.PYTHONPATH,undefined);assert.equal(child.arguments[2].env.PYTHONHOME,undefined);
  await client.stop();assert.equal(client.child,null);
 });
 test('a force-killed supervisor aborts update handoff even after exit',async()=>{

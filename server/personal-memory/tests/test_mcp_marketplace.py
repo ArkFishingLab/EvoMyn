@@ -33,7 +33,7 @@ class MarketplaceTests(unittest.TestCase):
         def runner(args, timeout):
             self.commands.append(args)
             if 'venv' in args:
-                python = self.root / 'packages/worldtime/.venv/Scripts/python.exe'
+                python = self.packages.python('worldtime')
                 python.parent.mkdir(parents=True, exist_ok=True)
                 python.touch()
         self.market = module.Marketplace(self.root, runner=runner, probe=lambda path: self.probes.append(path))
@@ -84,7 +84,7 @@ class MarketplaceTests(unittest.TestCase):
         self.market.remove('worldtime')
         self.assertFalse(self.packages.catalog()[-1]['installed'])
         self.assertFalse(self.packages.catalog()[-1]['enabled'])
-        self.assertTrue((self.root / 'packages/worldtime/.venv/Scripts/python.exe').exists())
+        self.assertTrue(self.packages.python('worldtime').exists())
         for ident in ['archive', 'planner']:
             with self.assertRaises(ValueError): self.market.remove(ident)
 

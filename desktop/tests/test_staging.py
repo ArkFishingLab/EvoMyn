@@ -1,4 +1,5 @@
 import importlib.util
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -82,6 +83,34 @@ class RuntimeStagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp); (root / '.env').write_bytes(b'harmless fixture')
             with self.assertRaises(ValueError): staging.audit_stage(root)
+
+    def test_mac_runtime_retains_executable_modes_and_uses_posix_site_packages(self):
+        staging = self.load()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve(); base = root / 'python'; packages = root / 'packages'
+            for name in ('bin/python3.11', 'lib/libpython3.11.dylib', 'lib/python3.11/os.py', 'lib/python3.11/LICENSE.txt'):
+                file = base / name; file.parent.mkdir(parents=True, exist_ok=True); file.write_bytes(b'fixture')
+            (base / 'bin/python3.11').chmod(0o755)
+            packages.mkdir(); source = packages / 'module.py'; source.write_text('value = 1')
+            output = root / 'staged'
+            staging.copy_python(base, packages, output, {'module.py': source}, 'darwin')
+            # NTFS does not expose POSIX executable bits; native Mac CI checks them.
+            if os.name != 'nt':
+                self.assertTrue((output / 'bin/python3.11').stat().st_mode & 0o100)
+            self.assertTrue((output / 'lib/python3.11/site-packages/module.py').is_file())
+            self.assertTrue((output / 'lib/python3.11/LICENSE.txt').is_file())
+            self.assertNotIn('Lib', [item.name for item in output.iterdir()])
+
+    def test_platform_requirements_select_one_compatible_onnx_pin(self):
+        staging = self.load()
+        for system, machine, version in [('Darwin', 'x86_64', '1.23.2'),
+                                         ('Darwin', 'arm64', '1.31.0'),
+                                         ('Windows', 'AMD64', '1.31.0'),
+                                         ('Linux', 'x86_64', '1.31.0')]:
+            requirements = staging.runtime_requirements({'platform_system': system, 'platform_machine': machine})
+            onnx = [requirement for requirement in requirements if requirement.name == 'onnxruntime']
+            self.assertEqual(len(onnx), 1)
+            self.assertEqual(str(onnx[0].specifier), '==' + version)
 
 
 if __name__ == '__main__':

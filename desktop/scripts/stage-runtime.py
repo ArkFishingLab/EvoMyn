@@ -10,6 +10,7 @@ import importlib.metadata
 import importlib.util
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import shutil
@@ -61,6 +62,15 @@ def private_artifact(relative):
         or relative.suffix.lower() in {'.db', '.sqlite', '.sqlite3', '.onnx', '.safetensors', '.pkl', '.bin', '.pt', '.h5', '.key', '.pfx', '.p12'})
 
 
+def runtime_requirements(environment=None):
+    from packaging.requirements import Requirement
+    requirements = [Requirement(line.strip()) for line in
+                    (ROOT / 'server/personal-memory/requirements.txt').read_text().splitlines()
+                    if line.strip() and not line.lstrip().startswith('#')]
+    return [requirement for requirement in requirements
+            if requirement.marker is None or requirement.marker.evaluate(environment)]
+
+
 def dependency_files():
     """Resolve installed metadata for only the declared requirements and extras.
 
@@ -69,7 +79,7 @@ def dependency_files():
     """
     from packaging.requirements import Requirement
     from packaging.utils import canonicalize_name
-    pending = [Requirement(line.strip()) for line in (ROOT / 'server/personal-memory/requirements.txt').read_text().splitlines() if line.strip()]
+    pending = runtime_requirements()
     visited, selected = {}, {}
     while pending:
         requirement = pending.pop()
@@ -108,7 +118,7 @@ def dependency_files():
     return result, {name: dist.version for name, dist in sorted(selected.items())}
 
 
-def copy_python(python_home, packages, output, package_files):
+def copy_python(python_home, packages, output, package_files, target_platform='win32'):
     python_home, packages, output = map(Path, (python_home, packages, output))
     if output.exists():
         raise ValueError('Python stage destination must be absent')
@@ -119,18 +129,30 @@ def copy_python(python_home, packages, output, package_files):
         checked_file(source)
         if any(part in excluded for part in relative.parts) or relative.suffix in {'.pyc', '.pyo'}:
             return
-        if relative.as_posix().startswith('Lib/site-packages/onnxruntime/datasets/'):
+        if 'onnxruntime/datasets/' in relative.as_posix():
             return  # Upstream demonstration models are not runtime dependencies.
+        if target_platform == 'darwin' and relative.name.startswith('_tkinter.'):
+            return  # The headless service does not ship Tcl/Tk.
         if private_artifact(relative):
             raise ValueError('Private configuration, database or model in runtime source: ' + relative.as_posix())
         target = output / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
-    for name in ('python.exe', 'pythonw.exe', 'python3.dll', 'python311.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'LICENSE.txt'):
+        shutil.copymode(source, target)
+    binaries = ('python.exe', 'pythonw.exe', 'python3.dll', 'python311.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'LICENSE.txt')
+    directories_to_copy = ('Lib', 'DLLs')
+    site_packages = Path('Lib/site-packages')
+    if target_platform == 'darwin':
+        binaries = ('bin/python3.11', 'lib/libpython3.11.dylib')
+        directories_to_copy = ('lib/python3.11', 'share/licenses')
+        site_packages = Path('lib/python3.11/site-packages')
+        for name in binaries:
+            checked_file(python_home / name)
+    for name in binaries:
         source = python_home / name
         if source.exists():
             copy(source, Path(name))
-    for directory in ('Lib', 'DLLs'):
+    for directory in directories_to_copy:
         for parent, directories, files in os.walk(python_home / directory, followlinks=False):
             for name in directories:
                 candidate = Path(parent) / name
@@ -146,7 +168,7 @@ def copy_python(python_home, packages, output, package_files):
             raise ValueError('Invalid distribution file path')
         if 'site-packages' in excluded:
             excluded.remove('site-packages')
-        copy(Path(source), Path('Lib/site-packages') / relative)
+        copy(Path(source), site_packages / relative)
 
 
 def audit_stage(output):
@@ -168,7 +190,8 @@ def audit_stage(output):
             # This exact reviewed wheel metadata contains a public Codecov
             # badge token. It is not an authentication credential. No exception
             # applies to local credentials or a different distribution payload.
-            if (relative.as_posix() == 'python/Lib/site-packages/huggingface_hub-1.33.0.dist-info/METADATA'
+            if (relative.as_posix() in ('python/Lib/site-packages/huggingface_hub-1.33.0.dist-info/METADATA',
+                    'python/lib/python3.11/site-packages/huggingface_hub-1.33.0.dist-info/METADATA')
                     and hashlib.sha256(data).hexdigest() == 'bee565776d66f486d224f74024b656a69ed42e2639d80b18811fca4365adc42e'):
                 public_badge = b'https://codecov.io/gh/huggingface/huggingface_hub/branch/main/graph/badge.svg' + b'?' + b'token=RXP95LE2XL'
                 data = data.replace(public_badge, b'https://codecov.io/public-badge')
@@ -178,9 +201,12 @@ def audit_stage(output):
 def pinned_dependencies():
     # These distributions are sufficient to assert that the staging environment
     # is the pinned application environment, rather than the user's global Python.
-    names = {'mnemosyne-memory': '3.15.1', 'mcp': '2.3.0', 'filelock': '4.1.1',
-             'fastembed': '0.9.0', 'onnxruntime': '1.31.0', 'websockets': '15.0.1',
-             'python-dotenv': '1.2.2', 'cryptography': '50.0.2'}
+    names = {}
+    for requirement in runtime_requirements():
+        pins = list(requirement.specifier)
+        if len(pins) != 1 or pins[0].operator != '==' or '*' in pins[0].version:
+            raise ValueError('Desktop runtime requirements must use exact versions')
+        names[requirement.name] = pins[0].version
     for name, version in names.items():
         if importlib.metadata.version(name) != version:
             raise ValueError('Install the exact server/personal-memory/requirements.txt before staging: ' + name)
@@ -188,8 +214,12 @@ def pinned_dependencies():
 
 
 def stage(output=OUTPUT):
-    if os.name != 'nt' or sys.version_info[:2] != (3, 11):
-        raise ValueError('Use Windows x64 Python 3.11 to stage this Windows release')
+    if sys.platform not in ('win32', 'darwin') or sys.version_info[:2] != (3, 11):
+        raise ValueError('Use native Windows or macOS Python 3.11 to stage this release')
+    machine = platform.machine().lower()
+    arch = {'amd64': 'x64', 'x86_64': 'x64', 'arm64': 'arm64', 'aarch64': 'arm64'}.get(machine)
+    if not arch or (sys.platform == 'win32' and arch != 'x64'):
+        raise ValueError('Unsupported runtime architecture')
     output = Path(os.path.abspath(output))
     # Only generated desktop build output may be replaced. Never accept a runtime,
     # source checkout, drive root, or parent computed outside this build tree.
@@ -214,19 +244,21 @@ def stage(output=OUTPUT):
         shutil.copyfile(ROOT / name, application / name)
     # uv's interpreter alias is a versioned junction; select the actual installed
     # prefix once, then reject any further linked file/ancestor during copying.
-    copy_python(Path(sys.base_prefix).resolve(strict=True), Path(sysconfig.get_paths()['purelib']), output / 'python', package_files)
+    copy_python(Path(sys.base_prefix).resolve(strict=True), Path(sysconfig.get_paths()['purelib']), output / 'python', package_files, sys.platform)
     uv = Path(shutil.which('uv.exe') or shutil.which('uv') or '')
     checked_file(uv)
-    uv_version = subprocess.check_output([str(uv), '--version'], text=True, creationflags=subprocess.CREATE_NO_WINDOW).strip()
+    uv_version = subprocess.check_output([str(uv), '--version'], text=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)).strip()
     if not uv_version.startswith('uv 0.10.7 '):
         raise ValueError('Install uv 0.10.7 for the reviewed optional marketplace installer')
     (output / 'tools').mkdir()
-    shutil.copyfile(uv, output / 'tools/uv.exe')
+    uv_target = output / 'tools' / ('uv.exe' if sys.platform == 'win32' else 'uv')
+    shutil.copyfile(uv, uv_target)
+    shutil.copymode(uv, uv_target)
     for name in ('uv-LICENSE-MIT', 'uv-LICENSE-APACHE'):
         shutil.copyfile(ROOT / 'desktop/assets/licenses' / name, output / 'tools' / name)
     audit_stage(output)
     source_manifest = [{'path': name, 'sha256': hashlib.sha256(data).hexdigest()} for name, data in sorted(payload.items())]
-    (output / 'RUNTIME-SOURCES.json').write_text(json.dumps({'schema': 1, 'python': '3.11',
+    (output / 'RUNTIME-SOURCES.json').write_text(json.dumps({'schema': 1, 'python': '3.11', 'platform': sys.platform, 'arch': arch,
         'pinned_distributions': versions, 'distribution_closure': all_versions,
         'marketplace_installer': {'version': uv_version, 'sha256': hashlib.sha256(uv.read_bytes()).hexdigest()}, 'application': source_manifest,
         'private_configuration': False, 'bundled_models': False}, indent=2) + '\n', encoding='utf-8')

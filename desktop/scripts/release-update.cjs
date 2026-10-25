@@ -6,7 +6,7 @@ const {parseArgs}=require('node:util');
 const {httpsUrl}=require('../updater.cjs');
 const desktop=path.resolve(__dirname,'..');
 const workspace=path.dirname(desktop);
-const {values}=parseArgs({options:{'init-key':{type:'boolean'},key:{type:'string'},installer:{type:'string'},version:{type:'string'},url:{type:'string'},notes:{type:'string'},output:{type:'string'}}});
+const {values}=parseArgs({options:{'init-key':{type:'boolean'},key:{type:'string'},installer:{type:'string'},version:{type:'string'},url:{type:'string'},notes:{type:'string'},output:{type:'string'},platform:{type:'string',default:'win32'},arch:{type:'string',default:'x64'}}});
 const keyPath=path.resolve(values.key||path.join(workspace,'.local/desktop-release/update-key.pem'));
 const trustPath=path.join(desktop,'update-trust.json');
 function publicDer(key){return crypto.createPublicKey(key).export({type:'spki',format:'der'}).toString('base64');}
@@ -22,12 +22,13 @@ if(values['init-key']){
  console.log('Update signing key prepared. Only update-trust.json is public; back up the private key separately.');
 }else{
  if(!values.installer||!values.version||!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(values.version))throw new Error('Use --installer FILE --version X.Y.Z [--url HTTPS_URL].');
- const installer=path.resolve(values.installer);if(path.extname(installer).toLowerCase()!=='.exe'||!fs.statSync(installer).isFile())throw new Error('Choose a Windows EXE installer.');
+ if(!((values.platform==='win32'&&values.arch==='x64')||(values.platform==='darwin'&&['arm64','x64'].includes(values.arch))))throw new Error('Unsupported release platform/architecture.');
+ const installer=path.resolve(values.installer);if(path.extname(installer).toLowerCase()!==(values.platform==='darwin'?'.zip':'.exe')||!fs.statSync(installer).isFile())throw new Error('Choose an EXE for Windows or a signed application ZIP for macOS.');
  const key=crypto.createPrivateKey(fs.readFileSync(keyPath));
  const trust=JSON.parse(fs.readFileSync(trustPath,'utf8'));
  if(key.asymmetricKeyType!=='ed25519'||trust.publicKey!==publicDer(key))throw new Error('Private release key does not match the pinned desktop public key.');
  const bytes=fs.readFileSync(installer);
- const payload={version:values.version,platform:'win32',arch:'x64',url:values.url?httpsUrl(values.url):null,size:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex'),notes:values.notes||''};
+ const payload={version:values.version,platform:values.platform,arch:values.arch,url:values.url?httpsUrl(values.url):null,size:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex'),notes:values.notes||''};
  if(payload.notes.length>8192)throw new Error('Release notes exceed 8192 characters.');
  const data=Buffer.from(JSON.stringify(payload));
  const envelope={signed:data.toString('base64'),signature:crypto.sign(null,data,key).toString('base64')};

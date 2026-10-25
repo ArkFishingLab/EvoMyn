@@ -93,7 +93,6 @@
   "选择应用界面的显示语言。": "Choose the app display language.",
   "中文": "中文",
   "开机启动": "Launch at startup",
-  "登录 Windows 后在后台启动。": "Start in the background when you sign in to Windows.",
   "关闭窗口后保留在托盘": "Keep in tray after closing",
   "从托盘重新打开，或右键退出。": "Reopen from the tray, or right-click to quit.",
   "已启用": "Enabled",
@@ -129,5 +128,6 @@
   "MCP 服务总开关": "MCP service switch",
   "查看错误详情": "View error details",
   "小智云端连接": "Xiaozhi Cloud connection",
-  "固件下载进度": "Firmware download progress"
+  "固件下载进度": "Firmware download progress",
+  "登录电脑后在后台启动。": "Start in the background when you log in."
 }

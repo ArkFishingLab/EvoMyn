@@ -1,11 +1,13 @@
 """Private HTTPS device gateway with one completion route and fixed OTA read hooks."""
 import hmac
 import json
+import os
 import re
 import ssl
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from local_http import ThreadingHTTPServer
 
 from device_archive import DeviceArchive, EventConflict
 
@@ -42,7 +44,10 @@ def _decode_event(raw):
 class DeviceHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     block_on_close = False
-    allow_reuse_address = False
+    # POSIX keeps accepted connections in TIME_WAIT after an OTA restart.
+    # SO_REUSEADDR permits rebinding that closed listener, not stealing a live
+    # listener. Preserve Windows' exclusive binding behavior.
+    allow_reuse_address = os.name != 'nt'
 
     def get_request(self):
         connection, address = super().get_request()

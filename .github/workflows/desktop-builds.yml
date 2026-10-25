@@ -1,0 +1,83 @@
+name: Desktop installation packages (test builds)
+
+# Build all platforms from the same selected ref. No release is published and
+# no signing secrets are made available to pull requests or these test builds.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x64
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      EVOMYN_MAC_ADHOC: '1'
+      PYTHONUTF8: '1'
+      UV_PYTHON_PREFERENCE: only-managed
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install reviewed runtime builder
+        run: python -m pip install uv==0.10.7
+      - name: Prepare native Python and pinned dependencies
+        shell: python {0}
+        run: |
+          import os, subprocess, sys
+          from pathlib import Path
+          def run(*args): subprocess.run(args, check=True)
+          if sys.platform == 'darwin': os.environ['TMPDIR'] = '/private/tmp'
+          run('uv', 'venv', '--python', '3.11.14', '.venv-desktop')
+          python = str(Path('.venv-desktop') / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python'))
+          run('uv', 'pip', 'install', '--python', python, '-r', 'server/personal-memory/requirements.txt')
+          run(python, '-B', 'desktop/scripts/stage-runtime.py')
+          run(python, 'tools/audit_repository.py')
+      - name: Build installation packages
+        working-directory: desktop
+        shell: python {0}
+        run: |
+          import subprocess, sys
+          npm = 'npm.cmd' if sys.platform == 'win32' else 'npm'
+          subprocess.run([npm, 'ci'], check=True)
+          command = [npm, 'run', 'dist', '--', '--publish', 'never'] if sys.platform == 'win32' else [npm, 'run', 'dist:mac', '--', '--${{ matrix.arch }}']
+          subprocess.run(command, check=True)
+      - name: Verify packaged MCP, data, controls and clean shutdown
+        shell: python {0}
+        run: |
+          import json, os, subprocess, sys
+          from pathlib import Path
+          home = Path('desktop/build/ci-smoke').resolve()
+          home.mkdir()
+          (home / '.desktop-smoke-fixture').touch()
+          executable = Path('desktop/dist/win-unpacked/EvoMyn.exe') if sys.platform == 'win32' else next(Path('desktop/dist').glob('mac*/EvoMyn.app/Contents/MacOS/EvoMyn'))
+          env = {**os.environ, 'PERSONAL_MEMORY_HOME': str(home), 'MNEMOSYNE_NO_EMBEDDINGS': '1', 'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_OFFLINE': '1'}
+          if sys.platform == 'darwin': env['TMPDIR'] = '/private/tmp'
+          subprocess.run([str(executable.resolve()), '--smoke-test', '--background'], env=env, check=True, timeout=180)
+          report = json.loads((home / 'smoke-result.json').read_text())
+          assert report['packaged'] and report['mcp']['record'] and report['cleanShutdown'], report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EvoMyn-${{ runner.os }}-${{ matrix.arch }}-test
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/build/ci-smoke/smoke-result.json

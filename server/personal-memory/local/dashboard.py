@@ -5,7 +5,7 @@ import sys
 import threading
 import tempfile
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -17,6 +17,7 @@ load_dotenv(ROOT / 'app/.env', override=True)
 os.environ['PERSONAL_ARCHIVE_HOME'] = str(ROOT / 'state')
 os.environ.setdefault('PLANNER_OWNER', 'device')
 sys.path.insert(0, str(ROOT / 'app'))
+from local_http import ThreadingHTTPServer
 from mcp_packages import planner_owner
 PLANNER_OWNER = planner_owner()
 from mcp_admin import Controller, create_admin_server

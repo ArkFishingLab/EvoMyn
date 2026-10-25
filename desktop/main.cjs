@@ -1,5 +1,5 @@
 'use strict';
-const {app,BrowserWindow,WebContentsView,Tray,Menu,ipcMain,dialog,shell,session,net}=require('electron');
+const {app,BrowserWindow,WebContentsView,Tray,Menu,nativeImage,ipcMain,dialog,shell,session,net,autoUpdater}=require('electron');
 const path=require('node:path');const fs=require('node:fs');const fsp=require('node:fs/promises');const crypto=require('node:crypto');
 const {pathToFileURL}=require('node:url');
 const {ServiceClient}=require('./service-client.cjs');const {UpdateManager,httpsUrl}=require('./updater.cjs');
@@ -9,9 +9,11 @@ const {createUpdateTransport,createElectronFetch}=require('./update-transport.cj
 const {ConnectionFlow}=require('./connection-flow.cjs');
 const {contentBounds,contentSpacing}=require('./layout.cjs');
 const {migrateLoginItem}=require('./startup.cjs');
+const {dataHome,pythonPath,loginSettings,applicationMenu}=require('./platform.cjs');
+const {MacUpdateInstaller}=require('./mac-updater.cjs');
 const {trustedAttachmentSender,openManagedAttachment}=require('./attachments.cjs');
 const {trustedShell,dashboardOrigin,allowedDashboard,allowedDownload,allowedSource,validateCommand}=require('./security.cjs');
-const home=process.env.PERSONAL_MEMORY_HOME?path.resolve(process.env.PERSONAL_MEMORY_HOME):path.join(app.getPath('appData'),'..','Local','PersonalMemory');
+const home=dataHome(app.getPath('appData'),process.platform,process.env.PERSONAL_MEMORY_HOME);
 // Keep the legacy data location so renaming does not create an empty profile.
 app.setPath('userData',home);
 app.setName('EvoMyn');
@@ -22,7 +24,7 @@ const languageSource=fs.readFileSync(path.join(__dirname,'ui','i18n.js'),'utf8')
 const languageCatalog=Object.assign({},...['shell-en.json','viewer-en.json','native-en.json'].map(file=>JSON.parse(fs.readFileSync(path.join(__dirname,'ui',file),'utf8'))));
 const nativeLanguage=require('./ui/i18n.js').createTranslator(languageCatalog);
 const t=value=>nativeLanguage.t(value);
-let window,view,tray,service,updater,firmware,connection,poll,origin='',page='memory',quitting=false,busy=false,cloudStartedAt=null;
+let window,view,tray,service,updater,macInstaller,firmware,connection,poll,origin='',page='memory',quitting=false,busy=false,cloudStartedAt=null;
 let serviceStatus=null,errorMessage='',preferences={updateFeed:DEFAULT_UPDATE_FEED,startAtLogin:false,language:'zh-CN'};
 const preferenceFile=path.join(home,'preferences.json');
 function snapshot(){return {version:app.getVersion(),service:serviceStatus,update:updater?.status(),firmware:firmware?.status(),preferences:{...preferences},busy,error:errorMessage,page,cloudStartedAt};}
@@ -51,11 +53,12 @@ function updateTray(){
   {type:'separator'},{label:t('退出'),click:()=>quit()}
  ]));
 }
+function updateMenu(){if(process.platform==='darwin')Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenu(t,reveal)));}
 function reveal(){if(!window)return;if(window.isMinimized())window.restore();window.show();window.focus();}
 function report(error){errorMessage=error?.message||'操作失败，请重试。';if(!serviceStatus?.ready)view?.setVisible(false);broadcast();}
 async function startService(){
  const base=app.isPackaged?path.join(process.resourcesPath,'backend'):path.join(__dirname,'build','runtime');
- service=new ServiceClient({python:path.join(base,'python','python.exe'),script:path.join(app.isPackaged?path.join(base,'scripts'):path.join(__dirname,'backend'),'service.py'),appDir:path.join(base,'application'),dataRoot:path.join(home,'service')});
+ service=new ServiceClient({python:pythonPath(base),script:path.join(app.isPackaged?path.join(base,'scripts'):path.join(__dirname,'backend'),'service.py'),appDir:path.join(base,'application'),dataRoot:path.join(home,'service')});
  service.on('unavailable',()=>{serviceStatus=null;report(new Error('后台服务已退出，请重新打开应用。'));});
  serviceStatus=await service.start();origin=dashboardOrigin(serviceStatus.dashboard_url);
  serviceStatus=await connection.startup();
@@ -78,6 +81,7 @@ async function perform(action,parameters={}){
   const previous=preferences.language;preferences.language=parameters.language;
   try{await persist();}catch(error){preferences.language=previous;throw error;}
   nativeLanguage.setLanguage(preferences.language);
+  if(window)updateMenu();
   await Promise.all([applyLanguage(window?.webContents),applyLanguage(view?.webContents)]);
   broadcast();return snapshot();
  }
@@ -92,7 +96,7 @@ async function perform(action,parameters={}){
  if(action==='update-install'){
   if(busy||firmware?.operation)throw new Error('固件或服务操作进行中，请稍后再试。');
   busy=true;errorMessage='';broadcast();let handedOff=false;
-  try{await updater.install();handedOff=true;setImmediate(()=>{quitting=true;app.quit();});return true;}
+  try{await updater.install();handedOff=true;setImmediate(()=>{quitting=true;if(macInstaller)macInstaller.quitAndInstall();else app.quit();});return true;}
   catch(error){if(!service.child){try{await startService();}catch{}}throw error;}
   // Retain the guard after successful handoff until the scheduled quit runs.
   finally{if(!handedOff){busy=false;broadcast();}}
@@ -100,11 +104,11 @@ async function perform(action,parameters={}){
  if(action==='set-update-feed'){const feed=parameters.url.trim()?httpsUrl(parameters.url.trim()):DEFAULT_UPDATE_FEED;updater.setFeed(feed);preferences.updateFeed=feed;await persist();broadcast();return updater.status();}
  if(action==='set-startup'){
   if(!app.isPackaged)throw new Error('安装应用后可设置开机启动。');
-  app.setLoginItemSettings({openAtLogin:parameters.enabled,name:'EvoMyn',path:process.execPath,args:['--background']});preferences.startAtLogin=parameters.enabled;await persist();broadcast();return snapshot();
+  app.setLoginItemSettings(loginSettings(parameters.enabled,process.execPath));preferences.startAtLogin=parameters.enabled;await persist();broadcast();return snapshot();
  }
  if(action==='update-import'){
   const manifest=await dialog.showOpenDialog(window,{title:t('选择签名更新说明'),properties:['openFile'],filters:[{name:t('签名更新说明'),extensions:['json']}]});if(manifest.canceled)return updater.status();
-  const installer=await dialog.showOpenDialog(window,{title:t('选择对应安装包'),properties:['openFile'],filters:[{name:t('Windows 安装包'),extensions:['exe']}]});if(installer.canceled)return updater.status();
+  const installer=await dialog.showOpenDialog(window,{title:t('选择对应安装包'),properties:['openFile'],filters:[{name:t(process.platform==='darwin'?'macOS 更新包':'Windows 安装包'),extensions:[process.platform==='darwin'?'zip':'exe']}]});if(installer.canceled)return updater.status();
   return updater.importRelease(manifest.filePaths[0],installer.filePaths[0]);
  }
  if(action==='export-config'){
@@ -135,7 +139,7 @@ async function perform(action,parameters={}){
  return snapshot();
 }
 async function quit(){
- if(quitting)return;quitting=true;clearInterval(poll);updater?.cancel();firmware?.cancel();
+ if(quitting)return;quitting=true;clearInterval(poll);updater?.cancel();macInstaller?.cancel();firmware?.cancel();
  if(window&&!window.isDestroyed())window.hide();
  try{await service?.stop();}catch(error){report(error);}finally{tray?.destroy();app.quit();}
 }
@@ -146,7 +150,8 @@ async function create(){
  migrateLoginItem(app,{executable:process.execPath,enabled:preferences.startAtLogin,isolated:!!process.env.PERSONAL_MEMORY_HOME});
  connection=new ConnectionFlow({request:async(command,params)=>{const status=await service.request(command,params);serviceStatus=status;return status;},needsSetup:async()=>{reveal();await showPage('setup');await window.webContents.executeJavaScript("document.getElementById('xiaozhi-details').open=true;document.getElementById('endpoint').focus();document.getElementById('endpoint').scrollIntoView({block:'center'})");}});
  const trust=require('./update-trust.json');
- updater=new UpdateManager({currentVersion:app.getVersion(),publicKey:crypto.createPublicKey({key:Buffer.from(trust.publicKey,'base64'),format:'der',type:'spki'}),cacheDir:path.join(home,'updates'),transport:createUpdateTransport(createElectronFetch(net.request.bind(net))),onBeforeInstall:async()=>{clearInterval(poll);await service.stop();},feedUrl:preferences.updateFeed});
+ if(process.platform==='darwin')macInstaller=new MacUpdateInstaller(autoUpdater);
+ updater=new UpdateManager({currentVersion:app.getVersion(),publicKey:crypto.createPublicKey({key:Buffer.from(trust.publicKey,'base64'),format:'der',type:'spki'}),cacheDir:path.join(home,'updates'),transport:createUpdateTransport(createElectronFetch(net.request.bind(net))),onBeforeInstall:async()=>{clearInterval(poll);await service.stop();},feedUrl:preferences.updateFeed,...(macInstaller?{spawnInstaller:file=>macInstaller.prepare(file)}:{})});
  updater.on('status',broadcast);
  firmware=new FirmwareUpdater({publicKey:crypto.createPublicKey({key:Buffer.from(trust.publicKey,'base64'),format:'der',type:'spki'}),temporaryDir:path.join(home,'firmware-downloads'),localDir:path.join(home,'service','device-updates'),transport:createUpdateTransport(createElectronFetch(net.request.bind(net))),activate:async manifest=>{if(quitting)throw new Error('应用正在退出。');serviceStatus=await service.request('ota-import-release',{manifest});broadcast();}});
  firmware.on('status',broadcast);
@@ -159,10 +164,12 @@ async function create(){
   item.once('done',(_event,state)=>{if(state!=='completed'){errorMessage=state==='cancelled'?t('下载已取消。'):t('文件下载失败，请重试。');broadcast();dialog.showMessageBox(window,{type:'warning',title:t('文件未保存'),message:errorMessage});}});
  });
  window=new BrowserWindow({width:1180,height:840,minWidth:880,minHeight:640,show:false,title:'EvoMyn',icon:path.join(__dirname,'assets','icon.ico'),backgroundColor:'#f3f3f1',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,backgroundThrottling:false}});
- Menu.setApplicationMenu(null);guard(window.webContents);window.webContents.on('dom-ready',()=>applyLanguage(window.webContents).catch(report));
+ if(process.platform==='darwin')updateMenu();else Menu.setApplicationMenu(null);guard(window.webContents);window.webContents.on('dom-ready',()=>applyLanguage(window.webContents).catch(report));
  view=new WebContentsView({webPreferences:{preload:path.join(__dirname,'attachment-preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,backgroundThrottling:false}});view.setBorderRadius(11);guard(view.webContents);view.webContents.on('dom-ready',()=>{if(allowedDashboard(view.webContents.getURL(),origin)){view.webContents.insertCSS(dashboardCSS).catch(report);applyLanguage(view.webContents).catch(report);}});view.webContents.on('did-navigate',(_event,url)=>{if(['memory','mcp'].includes(page)&&allowedDashboard(url,origin)&&new URL(url).pathname.startsWith('/memory/')){page=new URL(url).pathname.startsWith('/memory/mcp/')?'mcp':'memory';broadcast();}});view.setVisible(false);window.contentView.addChildView(view);resizeView();
  window.on('resize',resizeView);window.on('close',event=>{if(!quitting){event.preventDefault();window.hide();}});
- tray=new Tray(path.join(__dirname,'assets','icon.ico'));tray.on('double-click',reveal);tray.on('click',reveal);updateTray();
+ const trayIcon=process.platform==='darwin'?nativeImage.createFromPath(path.join(__dirname,'assets','trayTemplate.png')):path.join(__dirname,'assets','icon.ico');
+ if(process.platform==='darwin')trayIcon.setTemplateImage(true);
+ tray=new Tray(trayIcon);tray.on('double-click',reveal);tray.on('click',reveal);updateTray();
  ipcMain.handle('personal-memory:command',async(event,action,params)=>{
   if(!trustedShell(event,window?.webContents,shellFile))throw new Error('此页面没有桌面控制权限。');
   try{return await perform(action,params);}catch(error){report(error);throw new Error(error.message);}
@@ -171,7 +178,7 @@ async function create(){
   if(!trustedAttachmentSender(event,view?.webContents,origin))throw new Error('此页面没有附件打开权限。');
   return openManagedAttachment(params,service,shell);
  });
- await window.loadFile(shellFile);if(!process.argv.includes('--background'))reveal();
+ await window.loadFile(shellFile);if(!process.argv.includes('--background')&&!(process.platform==='darwin'&&app.getLoginItemSettings().wasOpenedAsHidden))reveal();
  try{await startService();}catch(error){report(error);}
  if(process.argv.includes('--smoke-test')||process.env.PERSONAL_MEMORY_SMOKE_EXPECT_VERSION===app.getVersion())await smokeTest();
  else if(process.argv.includes('--smoke-update'))await smokeUpdate();
@@ -203,7 +210,7 @@ async def main():
    assert not listed.is_error and title in str(listed)
    print(json.dumps({'name':initialized.server_info.name,'tools':len(tools.tools),'record':True,'preserved':preserved}))
 asyncio.run(main())`;
- return new Promise((resolve,reject)=>execFile(config.command,['-E','-s','-X','utf8','-c',code,JSON.stringify(config),category],{windowsHide:true,timeout:60000,maxBuffer:1024*1024,env:{...process.env,MNEMOSYNE_NO_EMBEDDINGS:'1'}},(error,stdout)=>{if(error)reject(new Error('Packaged MCP acceptance failed: '+error.message));else{try{resolve(JSON.parse(stdout.trim()));}catch(error){reject(error);}}}));
+ return new Promise((resolve,reject)=>execFile(config.command,['-E','-s','-B','-X','utf8','-c',code,JSON.stringify(config),category],{windowsHide:true,timeout:60000,maxBuffer:1024*1024,env:{...process.env,MNEMOSYNE_NO_EMBEDDINGS:'1'}},(error,stdout)=>{if(error)reject(new Error('Packaged MCP acceptance failed: '+error.message));else{try{resolve(JSON.parse(stdout.trim()));}catch(error){reject(error);}}}));
 }
 async function smokeUpdate(){
  isolatedSmoke();const mcp=await smokeMcp();
@@ -373,6 +380,6 @@ async function smokeTest(){
  }catch(error){await fsp.writeFile(path.join(home,'smoke-result.json'),JSON.stringify({...evidence,error:error.message,stack:error.stack},null,2));await service?.stop();quitting=true;app.exit(1);}
 }
 if(!app.requestSingleInstanceLock())app.quit();else{
- app.on('second-instance',reveal);app.on('before-quit',event=>{if(!quitting){event.preventDefault();quit();}});
+ app.on('second-instance',reveal);app.on('activate',reveal);app.on('before-quit',event=>{if(!quitting){event.preventDefault();quit();}});
  app.on('window-all-closed',()=>{});app.whenReady().then(create).catch(async error=>{report(error);await quit();});
 }

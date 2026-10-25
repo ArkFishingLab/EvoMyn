@@ -138,7 +138,7 @@ async def bridge(root, instance):
             async with websockets.connect(endpoint, max_size=LIMIT, open_timeout=10) as websocket:
                 atomic_json(state, {'instance': instance, 'connected': True})
                 observer.connected()
-                process = await asyncio.create_subprocess_exec(sys.executable, '-E', '-s', '-X', 'utf8', str(client),
+                process = await asyncio.create_subprocess_exec(sys.executable, '-E', '-s', '-B', '-X', 'utf8', str(client),
                     '--data-root', str(root), stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, limit=LIMIT + 1,
                     creationflags=getattr(__import__('subprocess'), 'CREATE_NO_WINDOW', 0))

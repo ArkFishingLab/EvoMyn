@@ -2,7 +2,8 @@ mnemosyne-memory[embeddings,mcp]==3.15.1
 mcp==2.3.0
 filelock==4.1.1
 fastembed==0.9.0
-onnxruntime==1.31.0
+onnxruntime==1.31.0; platform_system != "Darwin" or platform_machine != "x86_64"
+onnxruntime==1.23.2; platform_system == "Darwin" and platform_machine == "x86_64"
 websockets==15.0.1
 python-dotenv==1.2.2
 cryptography==50.0.2

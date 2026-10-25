@@ -13,7 +13,7 @@ EvoMyn 是一个面向个人 AI 化的开源项目。<br />
 
 [下载 Windows 应用](https://github.com/ArkFishingLab/EvoMyn/releases/latest) · [ESP 智能设备](#esp-智能设备让交互走到桌面上) · [快速开始](#快速开始) · [源码与开发](#源码与开发)
 
-Windows 桌面应用 · MCP 服务 · ESP32-S3 固件 · MIT 开源
+Windows / macOS 桌面应用 · MCP 服务 · ESP32-S3 固件 · MIT 开源
 
 </div>
 
@@ -129,7 +129,7 @@ EvoMyn 将日常经历保存在一份本地记忆库里，让不同 AI 在需要
 
 安装包包含运行所需的 Python 和依赖，无需另装 Python、Node.js 或 Docker。首次使用语义检索可能需要联网下载模型；通过商城安装可选扩展时也需要联网。
 
-> 本文和界面截图介绍当前主分支，已发布安装包的功能以对应 Release 的说明为准。目前提供 Windows x64 安装包。
+> 本文和界面截图介绍当前源码，已发布安装包的功能以对应 Release 的说明为准。Windows x64 安装包见 Releases；macOS 14+ 适配及构建见 [Mac 桌面说明](docs/macos.md)。本分支的 Mac 包尚未作为正式签名版本发布。
 
 ### 2. 开启 MCP，接入常用客户端
 
@@ -196,7 +196,7 @@ Windows 桌面版的默认位置：
 
 | 入口 | 内容 |
 | --- | --- |
-| [desktop/](desktop/README.md) | Windows 应用、托盘、服务开关、签名更新与安装包构建 |
+| [desktop/](desktop/README.md) | Windows / macOS 应用、托盘、服务开关、签名更新与安装包构建 |
 | [server/personal-memory/](server/personal-memory/README.md) | 记忆服务、MCP、看板及源码启动器 |
 | [xiaozhi-firmware/](xiaozhi-firmware/README.md) | ESP 智能设备固件、板型适配、本地提醒与设备更新 |
 | [preview/](preview/README.md) · [assets/](assets/README.md) | 智能设备屏幕交互预览与图标矢量源 |

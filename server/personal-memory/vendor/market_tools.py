@@ -10,7 +10,9 @@ from mcp_packages import Packages
 
 
 async def call_time_server(python, name, arguments):
-    params = StdioServerParameters(command=str(python), args=['-X', 'utf8', '-m', 'mcp_server_time',
+    # A virtualenv can share the signed app's standard library. Do not write
+    # bytecode beside those resources when launching an optional provider.
+    params = StdioServerParameters(command=str(python), args=['-B', '-X', 'utf8', '-m', 'mcp_server_time',
         '--local-timezone=Asia/Shanghai'], env={'PYTHONUTF8': '1'}, cwd=str(Path(python).resolve().parents[2]))
     async with asyncio.timeout(20):
         with open(os.devnull, 'w', encoding='utf-8') as errors:
