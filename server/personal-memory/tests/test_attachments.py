@@ -15,7 +15,8 @@ class AttachmentTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        # ArchiveStore canonicalizes its root; Windows CI may use an 8.3 TEMP alias.
+        self.root = Path(self.tmp.name).resolve()
         self.store = isolated_store(self.root)
         self.source = self.root / '原始资料.txt'
         self.source.write_bytes(b'original attachment')

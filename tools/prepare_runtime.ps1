@@ -60,7 +60,7 @@ function Get-SourceRuntimeFiles {
     $base='server/personal-memory'
     $files=[ordered]@{}
     foreach ($name in @(
-        'archive_store.py','archive_categories.py','backup_bundle.py','backup_github.py','backup_manager.py',
+        'archive_store.py','archive_categories.py','attachment_files.py','backup_bundle.py','backup_github.py','backup_manager.py',
         'backup_server.py','device_archive.py','device_gateway.py','device_updates.py',
         'market_tools.py','mcp_admin.py','mcp_marketplace.py','mcp_observability.py',
         'mcp_packages.py','mcp_pipe.py','mcp_server.py','planner_server.py',
@@ -79,7 +79,7 @@ function Get-SourceRuntimeFiles {
         $files["$base/viewer/$name"]="viewer/$name"
     }
     foreach ($name in @('style.css','personal.mjs','personal-shared.mjs','personal-native.css',
-                        'personal-model.mjs','favicon.svg','backup.mjs','backup.css','categories.mjs','categories.css','record-editor.mjs','record-editor.css','editor-model.mjs')) {
+                        'personal-model.mjs','favicon.svg','backup.mjs','backup.css','categories.mjs','categories.css','record-editor.mjs','record-editor.css','editor-model.mjs','attachments.mjs')) {
         $files["$base/viewer/static/$name"]="viewer/static/$name"
     }
     $files["$base/distribution/public-fonts.css"]='viewer/static/brand-fonts.css'
