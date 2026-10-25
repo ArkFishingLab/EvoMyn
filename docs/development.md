@@ -1,6 +1,6 @@
 # 开发与验证
 
-Windows 桌面构建、隔离验证和更新签名另见 [desktop/README.md](../desktop/README.md)。桌面安装使用独立 LocalAppData 数据目录；不要用正式数据运行测试。
+Windows / macOS 桌面构建、隔离验证和更新签名另见 [desktop/README.md](../desktop/README.md) 与 [Mac 构建说明](macos.md)。桌面安装使用独立 LocalAppData / Application Support 数据目录；不要用正式数据运行测试。
 
 在仓库根目录运行以下命令。Windows 启动层要求 PowerShell；PC 推荐 Python 3.11，预览测试使用 Node.js 22 或更新的兼容版本。完整依赖固定在 `server/personal-memory/requirements.txt`。首次 `Start.cmd` 会准备独立运行副本并安装依赖；开发也可使用自己的虚拟环境。
 

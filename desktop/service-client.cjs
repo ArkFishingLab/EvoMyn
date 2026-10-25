@@ -4,6 +4,7 @@ const {spawn}=require('node:child_process');
 const crypto=require('node:crypto');
 const path=require('node:path');
 const fs=require('node:fs/promises');
+const {toolsPath}=require('./platform.cjs');
 const MAX_LINE=1024*1024;
 async function waitClients(records,options){
  if(!records.length)return;
@@ -23,7 +24,7 @@ try:
 finally:
  for owner in owners: owner.close()`;
  await new Promise((resolve,reject)=>{
-  const child=spawn(options.python,['-E','-s','-X','utf8','-c',code,path.dirname(options.script)],{stdio:['pipe','ignore','ignore'],windowsHide:true});
+  const child=spawn(options.python,['-E','-s','-B','-X','utf8','-c',code,path.dirname(options.script)],{stdio:['pipe','ignore','ignore'],windowsHide:true});
   const timer=setTimeout(()=>{child.kill();reject(new Error('客户端退出检查超时，已取消更新。'));},15000);
   child.once('error',()=>{clearTimeout(timer);reject(new Error('无法检查客户端进程，已取消更新。'));});
   child.once('exit',code=>{clearTimeout(timer);if(code===0)resolve();else reject(new Error('仍有客户端连接正在关闭，已取消更新。请稍后重试。'));});
@@ -38,8 +39,8 @@ class ServiceClient extends EventEmitter{
   if(this.child)throw new Error('后台服务已启动。');
   const o=this.options,env={...o.env};
   for(const key of Object.keys(env))if(/^PYTHON|^MCP|^PERSONAL_ARCHIVE|^MNEMOSYNE_DESKTOP|^DEVICE_GATEWAY/i.test(key))delete env[key];
-  const pathKey=Object.keys(env).find(key=>key.toUpperCase()==='PATH')||'PATH';env[pathKey]=path.join(path.dirname(o.python),'..','tools')+path.delimiter+(env[pathKey]||'');
-  const child=o.spawnProcess(o.python,['-E','-s','-X','utf8','-u',o.script,'--app-dir',o.appDir,'--data-root',o.dataRoot],{env,cwd:o.appDir,stdio:['pipe','pipe','pipe'],windowsHide:true});
+  const pathKey=Object.keys(env).find(key=>key.toUpperCase()==='PATH')||'PATH';env[pathKey]=toolsPath(o.python)+path.delimiter+(env[pathKey]||'');
+  const child=o.spawnProcess(o.python,['-E','-s','-B','-X','utf8','-u',o.script,'--app-dir',o.appDir,'--data-root',o.dataRoot],{env,cwd:o.appDir,stdio:['pipe','pipe','pipe'],windowsHide:true});
   this.child=child;this.closing=false;child.stdout.setEncoding('utf8');
   child.stdin.on('error',()=>this.fail(new Error('后台服务连接已关闭。')));
   child.stdout.on('error',()=>this.fail(new Error('后台服务连接已关闭。')));

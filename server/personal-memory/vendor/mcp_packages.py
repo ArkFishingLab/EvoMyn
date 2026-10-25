@@ -73,7 +73,8 @@ class Packages:
         except (OSError, ValueError): return False
 
     def python(self, ident):
-        return self.path.parent / 'packages' / ident / '.venv/Scripts/python.exe'
+        import os
+        return self.path.parent / 'packages' / ident / ('.venv/Scripts/python.exe' if os.name == 'nt' else '.venv/bin/python')
 
     def set(self, ident, enabled):
         if not isinstance(ident, str) or ident not in {item['id'] for item in MANIFEST} or type(enabled) is not bool:

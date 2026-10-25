@@ -236,7 +236,7 @@ class Supervisor:
             raise
 
     def spawn(self, role, pipes=False):
-        return OwnedProcess([sys.executable, '-E', '-s', '-X', 'utf8', '-u', str(Path(__file__).with_name('host.py')),
+        return OwnedProcess([sys.executable, '-E', '-s', '-B', '-X', 'utf8', '-u', str(Path(__file__).with_name('host.py')),
             '--role', role, '--data-root', str(self.root), '--instance', self.instance],
             env=environment(self.root) | {key: self.env[key] for key in
                 ('DASHBOARD_PORT', 'ARCHIVE_PORT', 'ADMIN_PORT', 'MCP_LAUNCH_INSTANCE')},
@@ -325,7 +325,7 @@ class Supervisor:
         if format not in ('json', 'toml'):
             raise ValueError('Unsupported configuration format')
         command = str(Path(sys.executable).absolute())
-        args = ['-E', '-s', '-X', 'utf8', str(Path(__file__).with_name('client.py').resolve()), '--data-root', str(self.root)]
+        args = ['-E', '-s', '-B', '-X', 'utf8', str(Path(__file__).with_name('client.py').resolve()), '--data-root', str(self.root)]
         if format == 'json':
             return json.dumps({'mcpServers': {'evomyn': {'command': command, 'args': args}}}, ensure_ascii=False, indent=2)
         return '[mcp_servers.evomyn]\ncommand = ' + json.dumps(command, ensure_ascii=False) + '\nargs = ' + json.dumps(args, ensure_ascii=False) + '\n'

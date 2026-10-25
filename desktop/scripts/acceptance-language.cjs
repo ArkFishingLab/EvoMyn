@@ -1,6 +1,7 @@
 'use strict';
 // Real Electron acceptance using a new, disposable profile; never installed data.
 const fs=require('node:fs'),path=require('node:path'),{spawn}=require('node:child_process'),assert=require('node:assert/strict');
+const runtime=require('./acceptance-runtime.cjs');
 const desktop=path.resolve(__dirname,'..'),home=path.join(desktop,'build','language-acceptance-'+Date.now());
 fs.mkdirSync(home,{recursive:true});
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -17,7 +18,7 @@ async function connect(target){
 (async()=>{
  const evidence={};
  for(let launch=0;launch<2;launch++){
-  const port=await freePort(),child=spawn(path.join(desktop,'node_modules/electron/dist/electron.exe'),[desktop,'--background','--remote-debugging-address=127.0.0.1','--remote-debugging-port='+port],{windowsHide:true,env:{...process.env,PERSONAL_MEMORY_HOME:home,MNEMOSYNE_NO_EMBEDDINGS:'1',HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1'}});
+  const port=await freePort(),child=spawn(runtime.executable,[...runtime.args,'--background','--remote-debugging-address=127.0.0.1','--remote-debugging-port='+port],{windowsHide:true,env:{...process.env,PERSONAL_MEMORY_HOME:home,MNEMOSYNE_NO_EMBEDDINGS:'1',HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1'}});
   const log=fs.openSync(path.join(home,'electron-'+launch+'.log'),'w');child.stdout.on('data',bytes=>fs.writeSync(log,bytes));child.stderr.on('data',bytes=>fs.writeSync(log,bytes));
   let shell,memory;
   const targets=()=>fetch('http://127.0.0.1:'+port+'/json/list').then(response=>response.json());
@@ -54,7 +55,7 @@ async function connect(target){
    for(let n=0;n<40&&child.exitCode===null;n++)await sleep(250);
    if(child.exitCode===null&&child.pid){
     // Terminate only this newly spawned fixture's process tree on failure.
-    await new Promise(resolve=>{const killer=spawn('taskkill.exe',['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});killer.once('error',resolve);killer.once('exit',resolve);});
+    await runtime.stopChild(child);
    }
    fs.closeSync(log);
   }

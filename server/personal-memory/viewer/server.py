@@ -274,7 +274,10 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
                     return self.respond({'error': '请使用文件上传请求。'}, code=415)
                 # A total deadline and per-read timeout bound slow or incomplete uploads.
                 deadline = time.monotonic() + 60
-                with tempfile.TemporaryDirectory(prefix='evomyn-upload-') as folder:
+                # macOS exposes its system temp directory through /var ->
+                # /private/var. Resolve that OS-owned base before creating our
+                # private upload directory; user-supplied links remain rejected.
+                with tempfile.TemporaryDirectory(prefix='evomyn-upload-', dir=Path(tempfile.gettempdir()).resolve()) as folder:
                     file = Path(folder) / filename
                     with file.open('xb') as stream:
                         remaining = length

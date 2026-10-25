@@ -122,7 +122,7 @@ class DesktopBackend(unittest.TestCase):
         config = self.command('client-config', format='json')
         entry = json.loads(config)['mcpServers']['evomyn']
         self.assertIn(str(BACKEND / 'client.py'), entry['args'])
-        self.assertEqual(entry['args'][:4], ['-E', '-s', '-X', 'utf8'])
+        self.assertEqual(entry['args'][:5], ['-E', '-s', '-B', '-X', 'utf8'])
         self.assertNotIn('token', config.lower())
         self.command('stop-mcp')
         self.command('set-cloud', enabled=True)
@@ -435,6 +435,11 @@ class DesktopBackend(unittest.TestCase):
             ({'Authorization': 'Bearer ' + descriptor['token'], 'Origin': 'https://evil.invalid'}, b'{}', 403),
             ({'Authorization': 'Bearer ' + descriptor['token']}, b'x' * 1048577, 413),
         ]:
+            if expected == 413:
+                # Exercise rejection from the declared length before uploading
+                # the body; macOS may reset a sender still writing a large body.
+                headers = {**headers, 'Content-Length': str(len(payload))}
+                payload = b''
             with self.assertRaises(HTTPError) as error:
                 urlopen(Request(url, data=payload, headers=headers), timeout=5)
             self.assertEqual(error.exception.code, expected)
@@ -551,7 +556,7 @@ class BackendOwnedProcess(unittest.TestCase):
             with patch.object(service, 'OwnedProcess') as spawn:
                 owner.spawn('worker', pipes=True)
                 args = spawn.call_args.args[0]
-                self.assertEqual(args[1:6], ['-E', '-s', '-X', 'utf8', '-u'])
+                self.assertEqual(args[1:7], ['-E', '-s', '-B', '-X', 'utf8', '-u'])
 
     @unittest.skipUnless(os.name == 'nt', 'Windows job assignment race regression')
     def test_child_cannot_run_before_assignment_even_when_assignment_is_delayed(self):

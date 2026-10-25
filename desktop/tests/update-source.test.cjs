@@ -1,12 +1,13 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {DEFAULT_UPDATE_FEED,resolveUpdateFeed}=require('../update-source.cjs');
+const {DEFAULT_UPDATE_FEED,WINDOWS_UPDATE_FEED,defaultUpdateFeed,resolveUpdateFeed}=require('../update-source.cjs');
 
 test('fresh and legacy empty preferences use the public EvoMyn release feed',()=>{
  const expected='https://github.com/ArkFishingLab/EvoMyn/releases/latest/download/latest.json';
- assert.equal(DEFAULT_UPDATE_FEED,expected);
- for(const value of [undefined,null,'','   '])assert.equal(resolveUpdateFeed(value),expected);
+ assert.equal(WINDOWS_UPDATE_FEED,expected);
+ assert.equal(defaultUpdateFeed('win32','x64'),expected);
+ for(const value of [undefined,null,'','   '])assert.equal(resolveUpdateFeed(value,'win32','x64'),expected);
 });
 test('saved former official feeds migrate to the current repository',()=>{
  for(const value of [

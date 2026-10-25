@@ -12,6 +12,9 @@
     "test": "node --test tests/*.test.cjs",
     "pack": "electron-builder --config electron-builder.cjs --win --x64 --dir",
     "dist": "electron-builder --config electron-builder.cjs --win nsis --x64",
+    "icons:mac": "electron scripts/mac-icons.cjs",
+    "pack:mac": "electron-builder --config electron-builder.cjs --mac --dir --publish never",
+    "dist:mac": "electron-builder --config electron-builder.cjs --mac dmg zip --publish never",
     "release:update": "node scripts/release-update.cjs"
   },
   "devDependencies": {

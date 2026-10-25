@@ -1,4 +1,6 @@
-# EvoMyn · Windows 桌面应用
+# EvoMyn · Windows / macOS 桌面应用
+
+两平台共用业务源码及功能。macOS 14+ 的安装、原生构建、签名与双平台发布步骤见 [Mac 桌面说明](../docs/macos.md)；下面的 EXE、LocalAppData 和 PowerShell 示例对应 Windows。Mac 数据根目录为 `~/Library/Application Support/EvoMyn/`，子目录结构一致。
 
 安装 `EvoMyn-Setup-0.2.15-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
 

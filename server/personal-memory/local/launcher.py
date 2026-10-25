@@ -57,6 +57,21 @@ def process_identity(pid):
             if not value.get('executable') or not value.get('command'):
                 return None
             return value
+        if sys.platform == 'darwin':
+            import ctypes
+            libproc = ctypes.CDLL('/usr/lib/libproc.dylib')
+            libproc.proc_pidpath.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+            libproc.proc_pidpath.restype = ctypes.c_int
+            executable = ctypes.create_string_buffer(4096)
+            if libproc.proc_pidpath(pid, executable, len(executable)) <= 0:
+                return None
+            result = subprocess.run(['/bin/ps', '-ww', '-p', str(pid), '-o', 'lstart=', '-o', 'state=', '-o', 'command='],
+                capture_output=True, text=True, timeout=5, env={**os.environ, 'LC_ALL': 'en_US.UTF-8'})
+            fields = result.stdout.strip().split(None, 6)
+            if result.returncode or len(fields) != 7 or fields[5].startswith('Z'):
+                return None
+            return {'pid': pid, 'created': ' '.join(fields[:5]),
+                    'executable': executable.value.decode('utf-8'), 'command': fields[6]}
         proc = Path('/proc') / str(pid)
         stat = (proc / 'stat').read_text()
         fields = stat[stat.rfind(')') + 2:].split()

@@ -133,5 +133,6 @@
   "附件不可用。": "Attachment unavailable.",
   "此文件类型不能直接打开，可下载后手动处理。": "Download this file to open it manually.",
   "无法打开附件，请确认已安装支持此格式的应用。": "Unable to open the attachment. Install an app that supports this file type.",
-  "此页面没有附件打开权限。": "This page cannot open attachments."
+  "此页面没有附件打开权限。": "This page cannot open attachments.",
+  "macOS 更新包": "macOS update archive"
 }

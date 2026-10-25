@@ -1,6 +1,7 @@
 """Curated, pinned installers. Browser input never supplies shell commands or URLs."""
 import asyncio
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -20,7 +21,8 @@ class Marketplace:
     def _run(self, args, timeout):
         with tempfile.TemporaryFile() as output:
             result = subprocess.run(args, stdin=subprocess.DEVNULL, stdout=output, stderr=output,
-                shell=False, timeout=timeout, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                shell=False, timeout=timeout, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
         if result.returncode: raise RuntimeError('Installation failed')
 
     def _probe(self, python):
