@@ -73,6 +73,8 @@ jobs:
         run: echo "TMPDIR=/private/tmp" >> "$GITHUB_ENV"
       - name: Install pinned desktop service dependencies
         run: python -m pip install -r server/personal-memory/requirements.txt
+      - name: Diagnose isolated native startup
+        run: python desktop/tests/diagnose_startup.py
       - name: Exercise real MCP, master gate, cloud transport and process ownership
         run: python -m unittest discover -s desktop/tests -p "test_*.py" -v -f
       - name: Shared shell and platform integration fixtures
