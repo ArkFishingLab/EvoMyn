@@ -1,10 +1,10 @@
 # EvoMyn · Windows 桌面应用
 
-安装 `EvoMyn-Setup-0.2.14-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
+安装 `EvoMyn-Setup-0.2.15-x64.exe`，打开「EvoMyn」即可使用。安装包包含 Python 和所需依赖，无需另装 Python、Node.js 或 uv。首次使用语义检索会下载模型；模型与联网服务各自遵循其发布者的条款。
 
-开发分支新增「应用设置 → 桌面偏好 → 语言」，支持中文 / English，默认中文。切换立即生效并保存在本机，覆盖桌面界面、记忆管理、能力和托盘；记忆内容与自定义分类保留原文。切换语言不会重启 MCP 或丢弃编辑草稿。该功能尚未随正式安装包发布。
+0.2.15 新增「应用设置 → 桌面偏好 → 语言」，支持中文 / English，默认中文。切换立即生效并保存在本机，覆盖桌面界面、记忆管理、能力和托盘；记忆内容与自定义分类保留原文。切换语言不会重启 MCP 或丢弃编辑草稿。
 
-## 资料附件（开发分支）
+## 资料附件
 
 新增或打开一条资料后，在详情里点击「添加附件」，可一次选择多个文件；每个文件最多 50 MiB。应用将副本保存到 `%LOCALAPPDATA%\PersonalMemory\service\state\resources\`，原文件不移动，同名文件分开保存。详情提供文件名、大小、打开和下载；文档、图片、音视频等常用格式使用系统默认应用打开，其他类型可下载后自行处理。删除记忆不会自动删除附件文件，以保留原有备份和历史引用。
 
@@ -78,7 +78,7 @@ npm test
 npm run dist
 ```
 
-输出：`desktop/dist/EvoMyn-Setup-0.2.14-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
+输出：`desktop/dist/EvoMyn-Setup-0.2.15-x64.exe`。`npm run pack` 仅生成解包程序，`npm start` 运行开发窗口（也需要先 stage）。构建目录、安装包、数据库和密钥不进入 Git。依赖闭包由已安装发行版的 RECORD 白名单及哈希验证后复制，最终再次检查私有数据与凭证；不会复制已有个人服务。
 
 ## 发布更新
 
@@ -86,10 +86,10 @@ npm run dist
 
 ```powershell
 # desktop/ 内；使用当前已备份的发布密钥签名
-node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.14-x64.exe --version 0.2.14 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.14/EvoMyn-Setup-0.2.14-x64.exe --output dist/latest.json
-gh release create v0.2.14 dist/EvoMyn-Setup-0.2.14-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.14" --notes "桌面自动托管 ESP 固件更新，MCP 与设备更新独立运行。" --draft
+node scripts/release-update.cjs --installer dist/EvoMyn-Setup-0.2.15-x64.exe --version 0.2.15 --url https://github.com/ArkFishingLab/EvoMyn/releases/download/v0.2.15/EvoMyn-Setup-0.2.15-x64.exe --output dist/latest.json
+gh release create v0.2.15 dist/EvoMyn-Setup-0.2.15-x64.exe dist/latest.json --repo ArkFishingLab/EvoMyn --target main --title "EvoMyn 0.2.15" --notes "新增中英文切换和记忆附件管理，支持桌面与 MCP 导入附件。" --draft
 # 确认附件齐全后发布
-gh release edit v0.2.14 --repo ArkFishingLab/EvoMyn --draft=false --latest
+gh release edit v0.2.15 --repo ArkFishingLab/EvoMyn --draft=false --latest
 ```
 
 后续发布应同时更新版本号、版本标签、安装包名称和签名说明中的版本专属下载地址。每个正式 Release 均附同名 `latest.json`，固定的 `/releases/latest/download/latest.json` 会指向最新正式版本。先创建草稿并上传全部文件，检查后再发布，避免用户读取不完整版本。省略 `--url` 仍可生成离线说明。
