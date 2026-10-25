@@ -6,7 +6,8 @@ import re
 import ssl
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from local_http import ThreadingHTTPServer
 
 from device_archive import DeviceArchive, EventConflict
 

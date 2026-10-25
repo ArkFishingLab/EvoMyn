@@ -5,7 +5,8 @@ import os
 import secrets
 import threading
 import time
-from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from local_http import ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 from backup_manager import BackupManager

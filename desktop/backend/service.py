@@ -1,7 +1,7 @@
 """JSON-lines supervisor for the installed Windows desktop application."""
 import argparse
 import hmac
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 import json
 import os
 from pathlib import Path
@@ -175,6 +175,8 @@ class Supervisor:
         self.descriptor = self.root / 'desktop-session.json'
         try:
             prepare(app_dir, self.root)
+            # Import only reviewed runtime modules, never inherited PYTHONPATH.
+            sys.path.insert(0, str(self.root / 'app'))
             self.settings_path = self.root / 'desktop-settings.json'
             reject_links(self.settings_path)
             try:
@@ -198,8 +200,6 @@ class Supervisor:
             finally:
                 owner.close()
             self.env = environment(self.root)
-            # Import only reviewed runtime modules, never inherited PYTHONPATH.
-            sys.path.insert(0, str(self.root / 'app'))
             # Reserve all three ephemeral loopback listeners together so they
             # are distinct, then hand them to the fixed dashboard child.
             sockets = [socket.socket() for _ in range(3)]
@@ -488,6 +488,7 @@ class Supervisor:
                     self.wfile.write(raw)
                 except (OSError, ConnectionError):
                     pass
+        from local_http import ThreadingHTTPServer
         return ThreadingHTTPServer(('127.0.0.1', 0), Handler)
 
     def close(self):

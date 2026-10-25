@@ -11,7 +11,8 @@ import threading
 import time
 from datetime import datetime, timezone
 from http.cookies import SimpleCookie
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from local_http import ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 from mcp_packages import Packages

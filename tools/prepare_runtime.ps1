@@ -64,7 +64,7 @@ function Get-SourceRuntimeFiles {
         'backup_server.py','device_archive.py','device_gateway.py','device_updates.py',
         'market_tools.py','mcp_admin.py','mcp_marketplace.py','mcp_observability.py',
         'mcp_packages.py','mcp_pipe.py','mcp_server.py','planner_server.py',
-        'planner_store.py','planner_tools.py','restore_backup.py','runtime.py'
+        'planner_store.py','planner_tools.py','restore_backup.py','runtime.py','local_http.py'
     )) { $files["$base/vendor/$name"]="app/$name" }
     foreach ($directory in @('mcp_admin_web','planner_web')) {
         foreach ($name in @('index.html','style.css','app.js')) {

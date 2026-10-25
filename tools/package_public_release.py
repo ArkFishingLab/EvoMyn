@@ -26,7 +26,7 @@ VENDOR_FILES = (
     'backup_server.py', 'device_archive.py', 'device_gateway.py', 'device_updates.py',
     'market_tools.py', 'mcp_admin.py', 'mcp_marketplace.py', 'mcp_observability.py',
     'mcp_packages.py', 'mcp_pipe.py', 'mcp_server.py', 'planner_server.py',
-    'planner_store.py', 'planner_tools.py', 'restore_backup.py', 'runtime.py',
+    'planner_store.py', 'planner_tools.py', 'restore_backup.py', 'runtime.py', 'local_http.py',
 )
 PC_TESTS = (
     'test_attachment_proxy.py', 'test_archive_editing.py', 'test_archive_categories.py', 'test_attachments.py', 'test_backup_bundle.py', 'test_backup_github.py', 'test_backup_manager.py',
@@ -36,7 +36,7 @@ PC_TESTS = (
     'test_mcp_admin.py', 'test_mcp_marketplace.py', 'test_mcp_observability.py',
     'test_mcp_packages.py', 'test_planner.py', 'test_planner_server.py',
     'test_planner_tools.py', 'test_planner_web.cjs', 'test_local_launcher.py',
-    'test_local_onboarding.py',
+    'test_local_onboarding.py', 'test_local_http.py',
 )
 VIEWER_STATIC = (
     'style.css', 'personal.mjs', 'personal-shared.mjs', 'personal-native.css', 'attachments.mjs',

@@ -14,7 +14,7 @@ import threading
 import time
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
@@ -24,6 +24,10 @@ _category_spec = importlib.util.spec_from_file_location('viewer_category_catalog
 _category_module = importlib.util.module_from_spec(_category_spec)
 _category_spec.loader.exec_module(_category_module)
 CategoryCatalog = _category_module.CategoryCatalog
+_http_spec = importlib.util.spec_from_file_location('viewer_local_http', _category_file.with_name('local_http.py'))
+_http_module = importlib.util.module_from_spec(_http_spec)
+_http_spec.loader.exec_module(_http_module)
+ThreadingHTTPServer = _http_module.ThreadingHTTPServer
 _attachment_file = next(path for path in (ROOT.parent / 'app/attachment_files.py', ROOT.parent / 'vendor/attachment_files.py', ROOT.parent / 'attachment_files.py') if path.is_file())
 _attachment_spec = importlib.util.spec_from_file_location('viewer_attachment_files', _attachment_file)
 _attachment_module = importlib.util.module_from_spec(_attachment_spec)
