@@ -8,7 +8,7 @@ MANIFEST = (
     {'id': 'archive', 'name': '记忆档案', 'description': '保存、检索和整理个人记忆',
      'source': '项目内置', 'author': 'EvoMyn', 'version': '1.0', 'license': '项目内置', 'url': None,
      'builtin': True, 'setup': '无需配置，使用现有个人记忆库。',
-     'tools': ('archive_status', 'archive_record', 'archive_update', 'archive_list', 'archive_get',
+     'tools': ('archive_status', 'archive_record', 'archive_attach', 'archive_update', 'archive_list', 'archive_get',
                'archive_search', 'archive_history', 'archive_backup', 'archive_retry_index')},
     {'id': 'planner', 'name': '计划提醒', 'description': '管理待办、日程和提醒',
      'source': '项目内置', 'author': 'EvoMyn', 'version': '1.0', 'license': '项目内置', 'url': None,

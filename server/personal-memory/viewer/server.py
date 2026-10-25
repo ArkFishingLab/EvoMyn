@@ -6,14 +6,17 @@ import json
 import mimetypes
 import os
 import queue
+import re
 import secrets
 import sqlite3
+import tempfile
 import threading
+import time
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent
 _category_file = next(path for path in (ROOT.parent / 'app/archive_categories.py', ROOT.parent / 'vendor/archive_categories.py', ROOT.parent / 'archive_categories.py') if path.is_file())
@@ -21,11 +24,16 @@ _category_spec = importlib.util.spec_from_file_location('viewer_category_catalog
 _category_module = importlib.util.module_from_spec(_category_spec)
 _category_spec.loader.exec_module(_category_module)
 CategoryCatalog = _category_module.CategoryCatalog
+_attachment_file = next(path for path in (ROOT.parent / 'app/attachment_files.py', ROOT.parent / 'vendor/attachment_files.py', ROOT.parent / 'attachment_files.py') if path.is_file())
+_attachment_spec = importlib.util.spec_from_file_location('viewer_attachment_files', _attachment_file)
+_attachment_module = importlib.util.module_from_spec(_attachment_spec)
+_attachment_spec.loader.exec_module(_attachment_module)
 STATIC = ROOT / 'static'
 ASSETS = {'favicon.svg', 'brand-fonts.css', 'style.css', 'personal-native.css', 'backup.css', 'backup.mjs',
           'personal.mjs', 'personal-shared.mjs', 'personal-model.mjs', 'categories.mjs', 'categories.css',
-          'editor-model.mjs', 'record-editor.mjs', 'record-editor.css'}
+          'editor-model.mjs', 'record-editor.mjs', 'record-editor.css', 'attachments.mjs'}
 CHINA = timezone(timedelta(hours=8))
+MAX_ATTACHMENT_BYTES = _attachment_module.MAX_ATTACHMENT_BYTES
 
 
 class IndexWorker:
@@ -60,7 +68,29 @@ class IndexWorker:
 
 
 def public_record(record):
-    return {key: value for key, value in record.items() if key not in ('file_path', 'memory_id', 'index_error')}
+    result = {key: value for key, value in record.items() if key not in ('file_path', 'memory_id', 'index_error')}
+    # Use an existing managed entry's URL for the primary file when it is listed.
+    # Historical primary files may be separate from subsequently added attachments.
+    if record.get('file_path') and record.get('href') == '/api/files/' + quote(record.get('id', ''), safe=''):
+        primary = next((item for item in record.get('attachments', []) if isinstance(item, dict)
+                        and item.get('file_path') == record['file_path'] and item.get('href')), None)
+        if primary: result['href'] = primary['href']
+    if 'attachments' in result:
+        result['attachments'] = [{key: item[key] for key in ('id', 'name', 'size', 'sha256', 'href') if key in item}
+                                 for item in result['attachments'] if isinstance(item, dict)]
+    return result
+
+
+def attachment_filename(value):
+    """Decode the browser header once, and accept one portable file basename."""
+    if not value or re.search(r'%(?![0-9a-fA-F]{2})', value):
+        raise ValueError('附件名称不正确。')
+    name = unquote(value, errors='strict')
+    if (not name or len(name.encode('utf-8')) > 240 or name in ('.', '..')
+            or name[-1] in '. ' or any(ord(char) < 32 or ord(char) == 127 or char in '/\\<>:"|?*' for char in name)
+            or re.fullmatch(r'(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?', name, re.IGNORECASE)):
+        raise ValueError('附件名称不正确。')
+    return name
 
 
 def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
@@ -71,7 +101,7 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
         raise ValueError('Editor and viewer databases must match')
     catalog = CategoryCatalog(database)
     category_csrf = secrets.token_urlsafe(32)
-    resource_root = Path(resource_root or database.parent.parent / 'resources').resolve()
+    resource_root = Path(resource_root or database.parent.parent / 'resources').absolute()
     index_worker = None
 
     def read_rows():
@@ -135,13 +165,11 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
                     items = records()
                     self.respond({'engine': 'Mnemosyne', 'read_only': record_store is None, 'records': len(items), 'pending_index': sum(x['index_status'] == 'pending' for x in items)})
                 elif path.startswith('/api/files/'):
-                    record_id = unquote(path[len('/api/files/'):])
-                    record = next((json.loads(row['payload']) for row in read_rows() if json.loads(row['payload']).get('id') == record_id), None)
-                    if not record or not record.get('file_path'):
-                        raise FileNotFoundError()
-                    file = Path(record['file_path']).resolve()
-                    if not file.is_relative_to(resource_root) or not file.is_file():
-                        raise FileNotFoundError()
+                    parts = path[len('/api/files/'):].split('/')
+                    if not 1 <= len(parts) <= 2: raise FileNotFoundError()
+                    record_id = unquote(parts[0])
+                    try: file = _attachment_module.resolve_attachment(database, resource_root, record_id, unquote(parts[1]) if len(parts) == 2 else 'legacy')
+                    except (ValueError, OSError, KeyError): raise FileNotFoundError() from None
                     with file.open('rb') as stream:
                         self.write_headers(os.fstat(stream.fileno()).st_size, mimetypes.guess_type(file.name)[0] or 'application/octet-stream', filename=file.name)
                         if self.command != 'HEAD':
@@ -160,6 +188,7 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
                     content = file.read_bytes()
                     if file.name == 'index.html' and device_owns_planner:
                         content = content.replace('<a href="/memory/planner/">计划</a>'.encode('utf-8'), b'')
+                        content = content.replace('<a href="/memory/planner/"><!--i18n-->计划</a>'.encode('utf-8'), b'')
                     self.respond(content, kind + ('; charset=utf-8' if kind.startswith('text/') else ''))
             except (FileNotFoundError, KeyError):
                 self.respond({'error': 'Not found'}, code=404)
@@ -178,7 +207,8 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
         def do_POST(self):
             path = urlsplit(self.path).path
             editing = path == '/api/records' and record_store is not None
-            if path != '/api/categories' and not editing: return self.reject_write()
+            uploading = path == '/api/attachments' and record_store is not None
+            if path != '/api/categories' and not editing and not uploading: return self.reject_write()
             try:
                 host_header = self.headers.get('Host', '')
                 origin = urlsplit(self.headers.get('Origin', ''))
@@ -198,9 +228,10 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
             except ValueError:
                 self.close_connection = True
                 return self.respond({'error': '请求长度不正确。'}, code=400)
-            if not 0 < length <= (65536 if editing else 4096):
+            if not (0 <= length <= MAX_ATTACHMENT_BYTES if uploading else 0 < length <= (65536 if editing else 4096)):
                 self.close_connection = True
                 return self.respond({'error': '请求内容过大或为空。'}, code=413)
+            if uploading: return self.upload_attachment(length)
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
                 self.close_connection = True
                 return self.respond({'error': '请使用 JSON 请求。'}, code=415)
@@ -225,6 +256,51 @@ def create_server(database, port=8768, host='127.0.0.1', resource_root=None,
                 self.respond({'error': str(error)}, code=400)
             except (sqlite3.Error, OSError):
                 self.respond({'error': '分类未能保存，请稍后重试。'}, code=503)
+
+        def upload_attachment(self, length):
+            try:
+                if len(self.headers.get_all('X-File-Name', [])) != 1: raise ValueError('附件名称不正确。')
+                filename = attachment_filename(self.headers.get('X-File-Name'))
+                query = parse_qs(urlsplit(self.path).query, keep_blank_values=True, strict_parsing=True)
+                if set(query) != {'record_id', 'revision'} or any(len(value) != 1 for value in query.values()):
+                    raise ValueError('附件请求不正确。')
+                record_id = query['record_id'][0]
+                if not 0 < len(record_id) <= 120 or not query['revision'][0].isascii() or not query['revision'][0].isdigit():
+                    raise ValueError('记录版本不正确。')
+                revision = int(query['revision'][0])
+                if revision < 1: raise ValueError('记录版本不正确。')
+                if self.headers.get('Content-Type', '').split(';')[0] != 'application/octet-stream':
+                    self.close_connection = True
+                    return self.respond({'error': '请使用文件上传请求。'}, code=415)
+                # A total deadline and per-read timeout bound slow or incomplete uploads.
+                deadline = time.monotonic() + 60
+                with tempfile.TemporaryDirectory(prefix='evomyn-upload-') as folder:
+                    file = Path(folder) / filename
+                    with file.open('xb') as stream:
+                        remaining = length
+                        while remaining:
+                            budget = deadline - time.monotonic()
+                            if budget <= 0: raise TimeoutError()
+                            self.connection.settimeout(min(15, budget))
+                            block = self.rfile.read1(min(65536, remaining))
+                            if not block: raise TimeoutError()
+                            stream.write(block)
+                            remaining -= len(block)
+                    record = record_store.add_attachments(record_id, [str(file)], expected_revision=revision, index=False)
+                index_worker.schedule(record['id'])
+                self.respond({'record': public_record(record)})
+            except KeyError:
+                self.close_connection = True
+                self.respond({'error': '记录已被更新或删除，请刷新后重试。'}, code=409)
+            except (ValueError, UnicodeError) as error:
+                self.close_connection = True
+                self.respond({'error': str(error) if isinstance(error, ValueError) and not isinstance(error, UnicodeError) else '附件名称不正确。'}, code=409 if getattr(error, 'status_code', None) == 409 else 400)
+            except TimeoutError:
+                self.close_connection = True
+                self.respond({'error': '附件上传超时，请重试。'}, code=408)
+            except Exception:
+                self.close_connection = True
+                self.respond({'error': '附件未能保存，请稍后重试。'}, code=503)
 
         def edit_record(self, value):
             try:

@@ -336,6 +336,11 @@ class Supervisor:
                 return self.status()
             if command == 'client-config' and set(params) == {'format'}:
                 return self.client_config(params['format'])
+            if command == 'attachment-path' and set(params) == {'recordId', 'attachmentId'}:
+                if not all(isinstance(value, str) and 0 < len(value) <= 120 for value in params.values()):
+                    raise ValueError('Invalid attachment identity')
+                from attachments import attachment_path
+                return attachment_path(self.root, params['recordId'], params['attachmentId'])
             if command == 'ota-retry' and not params:
                 self.refresh_ota()
                 return self.status()

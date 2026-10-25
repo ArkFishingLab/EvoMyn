@@ -110,6 +110,8 @@ class WorkspaceLauncherTests(unittest.TestCase):
         (self.root / BASE / 'vendor/DO_NOT_COPY.secret').write_text('excluded')
         self.run_action()
         self.assertTrue((self.runtime / 'app/mcp_server.py').is_file())
+        for source, target in public_files().items():
+            self.assertTrue((self.runtime / target).is_file(), f'Missing runtime file: {source} -> {target}')
         self.assertTrue((self.runtime / 'dashboard.py').is_file())
         self.assertTrue((self.runtime / 'bootstrap.ps1').is_file())
         self.assertEqual(json.loads((self.runtime / 'runtime-install.json').read_text(encoding='utf-8'))['manager'], 'portable')

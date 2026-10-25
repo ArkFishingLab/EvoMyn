@@ -16,7 +16,7 @@ function allowedDownload(value,origin){
  try{
   if(value.startsWith('blob:'))return new URL(value.slice(5)).origin===origin;
   const url=new URL(value);return url.origin===origin&&!url.username&&!url.password&&
-   (/^\/setup\/clients\/(?:codex\.toml|claude\.json)$/.test(url.pathname)||url.pathname==='/memory/backup/restore-tool.py'||/^\/memory\/backup\/api\/download\/[A-Za-z0-9_-]+$/.test(url.pathname)||/^\/memory\/api\/files\/[A-Za-z0-9_-]+$/.test(url.pathname));
+   (/^\/setup\/clients\/(?:codex\.toml|claude\.json)$/.test(url.pathname)||url.pathname==='/memory/backup/restore-tool.py'||/^\/memory\/backup\/api\/download\/[A-Za-z0-9_-]+$/.test(url.pathname)||/^\/memory\/api\/files\/[A-Za-z0-9_-]+(?:\/[a-f0-9]{32})?$/.test(url.pathname));
  }catch{return false;}
 }
 function allowedSource(value){
@@ -31,6 +31,7 @@ function validateCommand(action,parameters){
  if(action==='save-endpoint'&&keys==='endpoint'&&typeof parameters.endpoint==='string'&&parameters.endpoint.length<=8192)return;
  if(action==='export-config'&&keys==='format'&&['json','toml'].includes(parameters.format))return;
  if(action==='set-startup'&&keys==='enabled'&&typeof parameters.enabled==='boolean')return;
+ if(action==='set-language'&&keys==='language'&&['zh-CN','en'].includes(parameters.language))return;
  if(action==='set-update-feed'&&keys==='url'&&typeof parameters.url==='string'&&parameters.url.length<=4096)return;
  if(action==='view'&&keys==='page'&&['memory','mcp','setup','settings'].includes(parameters.page))return;
  throw new Error('不支持此操作。');

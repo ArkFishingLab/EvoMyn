@@ -1,3 +1,4 @@
+const t = text => globalThis.EvoMynI18n?.t(text) ?? text;
 export const categories = {
   background: { label: '个人', subtitle: '关于自己、履历与个人积累', number: '01' },
   people: { label: '人脉', subtitle: '认识的人，以及一起经历的事', number: '02' },
@@ -39,12 +40,16 @@ function periodBounds(record) {
 }
 export function formatRecordDate(record) {
   function label(value) {
-    if (value === 'ongoing') return '至今';
+    if (value === 'ongoing') return t('至今');
+    if (globalThis.EvoMynI18n?.language === 'en') {
+      if (value.length === 4) return value;
+      if (value.length === 7 || value.length === 10) return new Date(`${value.length === 7 ? value + '-01' : value}T00:00:00Z`).toLocaleDateString('en-US', {timeZone:'Asia/Shanghai',year:'numeric',month:'short',...(value.length === 10 ? {day:'numeric'} : {})});
+    }
     if (value.length === 4) return `${value}年`;
     if (value.length === 7) return `${value.slice(0, 4)}年${Number(value.slice(5))}月`;
     return value;
   }
-  if (!record.date) return '日期未记录';
+  if (!record.date) return t('日期未记录');
   return label(record.date) + (record.date_end ? ` — ${label(record.date_end)}` : '');
 }
 

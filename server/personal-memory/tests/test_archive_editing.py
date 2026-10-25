@@ -57,7 +57,8 @@ class ArchiveEditingTests(unittest.TestCase):
         one = self.store.save({'category': 'resource', 'title': '资料', 'body': '附件', 'file_path': str(attachment)}, index=False)
         two = self.store.update(one['id'], {'category': 'background'}, expected_revision=1, index=False)
         self.assertEqual(two['href'], one['href'])
-        self.assertEqual(self.store.attachment(one['id']), attachment.resolve())
+        self.assertEqual(self.store.attachment(one['id']), Path(one['file_path']))
+        self.assertEqual(self.store.attachment(one['id']).read_text(), attachment.read_text())
 
     def test_delete_checks_revision_removes_history_and_unlinks_atomically(self):
         one = self.store.save(self.record(), index=False)

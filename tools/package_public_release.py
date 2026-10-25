@@ -22,14 +22,14 @@ PACKAGE = 'evomyn-mcp'
 VERSION = '0.2.12'
 BASE = 'server/personal-memory'
 VENDOR_FILES = (
-    'archive_store.py', 'archive_categories.py', 'backup_bundle.py', 'backup_github.py', 'backup_manager.py',
+    'archive_store.py', 'archive_categories.py', 'attachment_files.py', 'backup_bundle.py', 'backup_github.py', 'backup_manager.py',
     'backup_server.py', 'device_archive.py', 'device_gateway.py', 'device_updates.py',
     'market_tools.py', 'mcp_admin.py', 'mcp_marketplace.py', 'mcp_observability.py',
     'mcp_packages.py', 'mcp_pipe.py', 'mcp_server.py', 'planner_server.py',
     'planner_store.py', 'planner_tools.py', 'restore_backup.py', 'runtime.py',
 )
 PC_TESTS = (
-    'test_archive_editing.py', 'test_archive_categories.py', 'test_backup_bundle.py', 'test_backup_github.py', 'test_backup_manager.py',
+    'test_attachment_proxy.py', 'test_archive_editing.py', 'test_archive_categories.py', 'test_attachments.py', 'test_backup_bundle.py', 'test_backup_github.py', 'test_backup_manager.py',
     'test_backup_server.py', 'test_backup_wal.py', 'test_bridge.py',
     'test_device_archive.py', 'test_device_archive_dashboard.py',
     'test_device_archive_gateway.py', 'test_device_owner.py', 'test_device_updates.py',
@@ -39,7 +39,7 @@ PC_TESTS = (
     'test_local_onboarding.py',
 )
 VIEWER_STATIC = (
-    'style.css', 'personal.mjs', 'personal-shared.mjs', 'personal-native.css',
+    'style.css', 'personal.mjs', 'personal-shared.mjs', 'personal-native.css', 'attachments.mjs',
     'personal-model.mjs', 'favicon.svg', 'backup.mjs', 'backup.css', 'categories.mjs', 'categories.css', 'record-editor.mjs', 'record-editor.css', 'editor-model.mjs',
 )
 FIRMWARE_SUPPORT_FILES = (
