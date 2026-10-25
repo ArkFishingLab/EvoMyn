@@ -7,8 +7,9 @@ const fsp=require('node:fs/promises');
 const crypto=require('node:crypto');
 
 class MacUpdateInstaller{
- constructor(autoUpdater,{timeout=120000}={}){this.updater=autoUpdater;this.timeout=timeout;this.pending=null;this.ready=false;}
+ constructor(autoUpdater,{timeout=120000}={}){this.updater=autoUpdater;this.timeout=timeout;this.pending=null;this.ready=false;this.restartRequired=false;}
  async prepare(file){
+  if(this.restartRequired)throw new Error('请重新启动应用后再尝试 macOS 更新。');
   if(this.pending)throw new Error('macOS 更新安装正在进行。');
   const info=await fsp.lstat(file);
   if(!info.isFile()||info.isSymbolicLink())throw new Error('macOS 更新包无效。');
@@ -27,15 +28,21 @@ class MacUpdateInstaller{
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   try{
    await new Promise((resolve,reject)=>{
-    const finish=error=>{
+    let settled=false;
+    const finish=(error,abandoned=false)=>{
+     if(settled)return;settled=true;
+     // Squirrel cannot cancel a check or correlate its events with a request.
+     // After abandoning one, contain late errors for the remaining app lifetime
+     // and forbid retries so an old completion cannot authorize another ZIP.
+     if(abandoned){this.restartRequired=true;this.updater.on('error',()=>{});}
      clearTimeout(timer);this.updater.removeListener('error',failed);this.updater.removeListener('update-downloaded',downloaded);this.updater.removeListener('update-not-available',unavailable);this.pending=null;
      if(error)reject(error);else{this.ready=true;resolve();}
     };
     const failed=()=>finish(new Error('macOS 更新安装失败。请确认应用及更新包使用有效的 Apple 发布签名。'));
     const downloaded=()=>finish();
     const unavailable=()=>finish(new Error('macOS 更新包未被系统接受。'));
-    const timer=setTimeout(()=>finish(new Error('macOS 更新准备超时，请重试。')),this.timeout);
-    this.pending=()=>finish(new Error('macOS 更新已取消。'));
+    const timer=setTimeout(()=>finish(new Error('macOS 更新准备超时，请重新启动应用后重试。'),true),this.timeout);
+    this.pending=()=>finish(new Error('macOS 更新已取消，请重新启动应用后重试。'),true);
     this.updater.once('error',failed);this.updater.once('update-downloaded',downloaded);this.updater.once('update-not-available',unavailable);
     try{this.updater.setFeedURL({url:`http://127.0.0.1:${server.address().port}/${token}/feed`});this.updater.checkForUpdates();}catch{failed();}
    });

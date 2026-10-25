@@ -134,5 +134,13 @@
   "此文件类型不能直接打开，可下载后手动处理。": "Download this file to open it manually.",
   "无法打开附件，请确认已安装支持此格式的应用。": "Unable to open the attachment. Install an app that supports this file type.",
   "此页面没有附件打开权限。": "This page cannot open attachments.",
-  "macOS 更新包": "macOS update archive"
+  "macOS 更新包": "macOS update archive",
+  "请重新启动应用后再尝试 macOS 更新。": "Restart the application before trying the macOS update again.",
+  "macOS 更新安装正在进行。": "A macOS update installation is in progress.",
+  "macOS 更新包无效。": "The macOS update archive is invalid.",
+  "macOS 更新安装失败。请确认应用及更新包使用有效的 Apple 发布签名。": "The macOS update could not be installed. Check that the application and update have valid Apple distribution signatures.",
+  "macOS 更新包未被系统接受。": "macOS did not accept the update archive.",
+  "macOS 更新准备超时，请重新启动应用后重试。": "Preparing the macOS update timed out. Restart the application and try again.",
+  "macOS 更新已取消，请重新启动应用后重试。": "The macOS update was cancelled. Restart the application and try again.",
+  "macOS 更新尚未就绪。": "The macOS update is not ready."
 }

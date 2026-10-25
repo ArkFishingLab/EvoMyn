@@ -62,6 +62,15 @@ def private_artifact(relative):
         or relative.suffix.lower() in {'.db', '.sqlite', '.sqlite3', '.onnx', '.safetensors', '.pkl', '.bin', '.pt', '.h5', '.key', '.pfx', '.p12'})
 
 
+def runtime_requirements(environment=None):
+    from packaging.requirements import Requirement
+    requirements = [Requirement(line.strip()) for line in
+                    (ROOT / 'server/personal-memory/requirements.txt').read_text().splitlines()
+                    if line.strip() and not line.lstrip().startswith('#')]
+    return [requirement for requirement in requirements
+            if requirement.marker is None or requirement.marker.evaluate(environment)]
+
+
 def dependency_files():
     """Resolve installed metadata for only the declared requirements and extras.
 
@@ -70,7 +79,7 @@ def dependency_files():
     """
     from packaging.requirements import Requirement
     from packaging.utils import canonicalize_name
-    pending = [Requirement(line.strip()) for line in (ROOT / 'server/personal-memory/requirements.txt').read_text().splitlines() if line.strip()]
+    pending = runtime_requirements()
     visited, selected = {}, {}
     while pending:
         requirement = pending.pop()
@@ -192,9 +201,12 @@ def audit_stage(output):
 def pinned_dependencies():
     # These distributions are sufficient to assert that the staging environment
     # is the pinned application environment, rather than the user's global Python.
-    names = {'mnemosyne-memory': '3.15.1', 'mcp': '2.3.0', 'filelock': '4.1.1',
-             'fastembed': '0.9.0', 'onnxruntime': '1.31.0', 'websockets': '15.0.1',
-             'python-dotenv': '1.2.2', 'cryptography': '50.0.2'}
+    names = {}
+    for requirement in runtime_requirements():
+        pins = list(requirement.specifier)
+        if len(pins) != 1 or pins[0].operator != '==' or '*' in pins[0].version:
+            raise ValueError('Desktop runtime requirements must use exact versions')
+        names[requirement.name] = pins[0].version
     for name, version in names.items():
         if importlib.metadata.version(name) != version:
             raise ValueError('Install the exact server/personal-memory/requirements.txt before staging: ' + name)

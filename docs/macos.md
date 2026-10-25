@@ -1,6 +1,8 @@
 # macOS 桌面构建与验收
 
-Windows 和 macOS 使用同一份 `desktop/`、`server/personal-memory/` 业务源码、依赖版本和产品版本。`feat/macos-support` 是适配工作分支，验收后合并主分支；不长期维护两套业务分支。Windows 保留原来的安装身份、数据目录、NSIS 升级方式和 `latest.json` 更新入口。
+Windows 和 macOS 使用同一份 `desktop/`、`server/personal-memory/` 业务源码和产品版本。`feat/macos-support` 是适配工作分支，验收后合并主分支；不长期维护两套业务分支。Windows 保留原来的安装身份、数据目录、NSIS 升级方式和 `latest.json` 更新入口。
+
+Intel Mac 的 ONNX Runtime 固定为仍提供 macOS x64 安装包的 1.23.2；Windows 和 Apple Silicon 维持 1.31.0。其余直接依赖版本一致，构建器按平台标记校验依赖。
 
 ## 安装与数据
 

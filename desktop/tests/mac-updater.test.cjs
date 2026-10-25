@@ -29,6 +29,20 @@ test('native signature rejection and cancellation never hand off installation',a
  native.checkForUpdates=()=>setImmediate(()=>installer.cancel());
  await assert.rejects(installer.prepare(file),/取消/);assert.equal(native.installed,undefined);
 });
+for(const reason of ['timeout','cancel']){
+ test(`late native events after ${reason} are contained and cannot complete a retry`,async t=>{
+  const {file,native,installer}=await fixture(t);let checks=0;
+  installer.timeout=10;
+  native.checkForUpdates=()=>{checks++;if(reason==='cancel')setImmediate(()=>installer.cancel());};
+  await assert.rejects(installer.prepare(file),reason==='cancel'?/取消/:/超时/);
+  assert.doesNotThrow(()=>native.emit('error',new Error('request failed after loopback server closed')));
+  native.emit('update-downloaded');
+  assert.throws(()=>installer.quitAndInstall(),/就绪/);
+  await assert.rejects(installer.prepare(file),/重新启动/);
+  assert.equal(checks,1);
+  assert.equal(native.installed,undefined);
+ });
+}
 test('Mac downloads and offline imports share signature checks and pass ZIP without NSIS flags',async t=>{
  const {root}=await fixture(t),bytes=Buffer.from('zip fixture');
  const {publicKey,privateKey}=crypto.generateKeyPairSync('ed25519');

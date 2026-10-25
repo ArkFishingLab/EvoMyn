@@ -3,7 +3,7 @@ const path=require('node:path');
 
 function dataHome(appData,platform=process.platform,override){
  if(override)return path.resolve(override);
- return platform==='win32'?path.win32.join(appData,'..','Local','PersonalMemory'):path.join(appData,'EvoMyn');
+ return platform==='win32'?path.win32.join(appData,'..','Local','PersonalMemory'):path.posix.join(appData,'EvoMyn');
 }
 function pythonPath(base,platform=process.platform){
  return path.join(base,'python',...(platform==='win32'?['python.exe']:['bin','python3.11']));
