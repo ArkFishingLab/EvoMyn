@@ -114,7 +114,7 @@ class AttachmentUploadTests(unittest.TestCase):
 
     def test_legacy_primary_stays_downloadable_after_adding_managed_attachments(self):
         record = self.create()
-        resource = Path(self.tmp.name) / 'resources/legacy.txt'
+        resource = self.store.resources / 'legacy.txt'
         resource.parent.mkdir(exist_ok=True)
         resource.write_bytes(b'legacy bytes')
         # Simulate a pre-feature record in this test's isolated database.
